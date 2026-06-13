@@ -731,8 +731,14 @@ var optionKeys = [
   "echo",
   "include",
   "output",
+  "message",
   "warning",
   "error"
+];
+var compatibilityOptionKeys = [
+  "results",
+  "collapse",
+  "comment"
 ];
 var tableOptionKeys = [
   "label",
@@ -757,15 +763,17 @@ var documentFigureOptionKeys = [
   "fig-dpi",
   "fig-format"
 ];
-var optionSummary = "eval (true/false), echo (true/false/fenced), include (true/false), output (true/false/asis), warning (true/false), error (true/false)";
-var documentOptionSummary = `${optionSummary}, fig-width (number), fig-height (number), fig-dpi (number), fig-format (png/svg/retina)`;
+var optionSummary = "eval (true/false), echo (true/false/fenced), include (true/false), output (true/false/asis), message (true/false), warning (true/false), error (true/false)";
+var compatibilityOptionSummary = "results (markup/asis/hide/hold), collapse (true/false accepted as no-op), comment (string accepted as no-op)";
+var documentOptionSummary = `${optionSummary}, fig-width (number), fig-height (number), fig-dpi (number), fig-format (png/svg/retina), ${compatibilityOptionSummary}`;
 var figureOptionSummary = "label (tbl-* table labels or fig-* figure labels), tbl-cap (string), fig-width (number), fig-height (number), fig-dpi (number), fig-format (png/svg/retina), fig-cap (string or string list), fig-alt (string), fig-align (default/left/right/center), fig-link (string), width (string/number), height (string/number)";
-var chunkOptionSummary = `${optionSummary}, ${figureOptionSummary}`;
+var chunkOptionSummary = `${optionSummary}, ${figureOptionSummary}, ${compatibilityOptionSummary}`;
 var defaultExecutionOptions = () => ({
   eval: true,
   echo: false,
   include: true,
   output: true,
+  message: true,
   warning: true,
   error: false
 });
@@ -825,6 +833,7 @@ var uvPythonEngineDiscovery = {
         const documentOptions = documentExecutionOptions(options);
         const documentFigure = documentFigureSettings(options);
         const optionalRequirements = uvPythonWithRequirements(options);
+        const dataframeOptions = uvPythonDataFrameOptions(options);
         const runnerChunks = [];
         const runnerItems = [];
         const cellChunkNumbers = /* @__PURE__ */ new Map();
@@ -886,7 +895,8 @@ var uvPythonEngineDiscovery = {
             tempDir: options.tempDir,
             params: pythonParams(options),
             executeInfo: quartoExecuteInfo(options, documentPath),
-            optionalRequirements
+            optionalRequirements,
+            dataframeOptions
           });
         }
         const eventsByChunk = /* @__PURE__ */ new Map();
@@ -1224,6 +1234,11 @@ function documentExecutionOptions(options) {
   validateExplicitExecuteDefaults(options.target.metadata, options.format.identifier?.["target-format"]);
   const formatExecute = objectRecord(options.format.execute);
   if (formatExecute !== void 0) {
+    for (const key of compatibilityOptionKeys) {
+      if (key in formatExecute) {
+        applyCompatibilityOption(merged, key, formatExecute[key]);
+      }
+    }
     for (const key of optionKeys) {
       if (key in formatExecute) {
         merged[key] = parseOptionValue(key, formatExecute[key]);
@@ -1279,6 +1294,10 @@ function validateExecuteObject(value, sourceName) {
         applyFigureSetting(defaultFigureSettings(), key, execute[key]);
         continue;
       }
+      if (isCompatibilityOptionKey(key)) {
+        applyCompatibilityOption(defaultExecutionOptions(), key, execute[key]);
+        continue;
+      }
       throw new Error(`Unsupported uv-python ${sourceName} option '${key}'. Supported options: ${documentOptionSummary}.`);
     }
     parseOptionValue(key, execute[key]);
@@ -1304,6 +1323,11 @@ function parseChunk(cell, documentOptions, documentFigure) {
   for (const key of Object.keys(sourceOptions)) {
     if (!isSupportedChunkOptionKey(key)) {
       throw new Error(`Unsupported uv-python chunk option '${key}'. Supported options: ${chunkOptionSummary}.`);
+    }
+  }
+  for (const key of compatibilityOptionKeys) {
+    if (key in sourceOptions) {
+      applyCompatibilityOption(options, key, sourceOptions[key]);
     }
   }
   for (const key of optionKeys) {
@@ -1338,6 +1362,8 @@ function parseChunk(cell, documentOptions, documentFigure) {
     }
     if (isSupportedOptionKey(key)) {
       options[key] = parseOptionValue(key, value);
+    } else if (isCompatibilityOptionKey(key)) {
+      applyCompatibilityOption(options, key, value);
     } else if (isSupportedFigureOptionKey(key) && !isSupportedTableOptionKey(key)) {
       if (!(value === "" && key in sourceOptions)) {
         applyFigureOption(figure, key, value);
@@ -1349,11 +1375,12 @@ function parseChunk(cell, documentOptions, documentFigure) {
     }
     sourceOptionKeys.add(key);
     if (!(key === "echo" && options.echo === "fenced")) {
-      echoFencedOptionLines.push(`#| ${key}: ${formatEchoFencedOptionValue(key, options, table, figure)}`);
+      echoFencedOptionLines.push(`#| ${key}: ${formatEchoFencedOptionValue(key, options, table, figure, value)}`);
     }
   }
   for (const key of /* @__PURE__ */ new Set([
     ...optionKeys,
+    ...compatibilityOptionKeys,
     ...tableOptionKeys,
     ...figureOptionKeys
   ])) {
@@ -1366,7 +1393,7 @@ function parseChunk(cell, documentOptions, documentFigure) {
     if (key === "echo" && options.echo === "fenced") {
       continue;
     }
-    echoFencedOptionLines.push(`#| ${key}: ${formatEchoFencedOptionValue(key, options, table, figure)}`);
+    echoFencedOptionLines.push(`#| ${key}: ${formatEchoFencedOptionValue(key, options, table, figure, sourceOptions[key])}`);
   }
   validateChunkMetadata(table, figure);
   return {
@@ -1380,6 +1407,9 @@ function parseChunk(cell, documentOptions, documentFigure) {
 function isSupportedOptionKey(key) {
   return optionKeys.includes(key);
 }
+function isCompatibilityOptionKey(key) {
+  return compatibilityOptionKeys.includes(key);
+}
 function isSupportedTableOptionKey(key) {
   return tableOptionKeys.includes(key);
 }
@@ -1390,7 +1420,7 @@ function isDocumentFigureOptionKey(key) {
   return documentFigureOptionKeys.includes(key);
 }
 function isSupportedChunkOptionKey(key) {
-  return isSupportedOptionKey(key) || isSupportedTableOptionKey(key) || isSupportedFigureOptionKey(key);
+  return isSupportedOptionKey(key) || isCompatibilityOptionKey(key) || isSupportedTableOptionKey(key) || isSupportedFigureOptionKey(key);
 }
 function applyTableOrFigureOption(table, figure, key, value) {
   if (key === "label") {
@@ -1556,12 +1586,45 @@ function parseOutputValue(value) {
     throw new Error("uv-python option 'output' supports only true, false, or asis values.");
   }
 }
-function formatEchoFencedOptionValue(key, options, table, figure) {
-  const value = isSupportedOptionKey(key) ? options[key] : key === "label" ? table.label ?? figure.label ?? "" : key === "tbl-cap" ? table.caption ?? "" : figureOptionValueForEcho(key, figure);
+function applyCompatibilityOption(options, key, value) {
+  if (key === "results") {
+    const normalized = parseStringChunkOption(key, value).toLowerCase();
+    if (normalized === "asis") {
+      options.output = "asis";
+      return;
+    }
+    if (normalized === "hide") {
+      options.output = false;
+      return;
+    }
+    if (normalized === "markup" || normalized === "hold") {
+      return;
+    }
+    throw new Error("uv-python chunk option 'results' supports only markup, asis, hide, or hold values.");
+  }
+  if (key === "collapse") {
+    parseBooleanValue(key, value);
+    return;
+  }
+  if (typeof value !== "string") {
+    throw new Error("uv-python chunk option 'comment' supports only string values.");
+  }
+}
+function formatEchoFencedOptionValue(key, options, table, figure, sourceValue) {
+  const value = isCompatibilityOptionKey(key) ? formatCompatibilityOptionValue(sourceValue) : isSupportedOptionKey(key) ? options[key] : key === "label" ? table.label ?? figure.label ?? "" : key === "tbl-cap" ? table.caption ?? "" : figureOptionValueForEcho(key, figure);
   if (Array.isArray(value)) {
     return `[${value.join(", ")}]`;
   }
   return typeof value === "boolean" || typeof value === "number" ? String(value) : value;
+}
+function formatCompatibilityOptionValue(value) {
+  if (typeof value === "boolean" || typeof value === "number") {
+    return String(value);
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  return "";
 }
 function figureOptionValueForEcho(key, figure) {
   if (key === "fig-width") {
@@ -1643,6 +1706,35 @@ function parseUvPythonWithRequirements(value) {
     return requirement;
   });
 }
+function uvPythonDataFrameOptions(options) {
+  const formatMetadata = objectRecord(options.format.metadata);
+  const uvPythonMetadata = objectRecord(formatMetadata?.[kEngineName]);
+  if (uvPythonMetadata === void 0 || !("dataframe" in uvPythonMetadata)) {
+    return {};
+  }
+  const dataframe = objectRecord(uvPythonMetadata.dataframe);
+  if (dataframe === void 0) {
+    throw new Error("uv-python metadata 'uv-python.dataframe' must be a mapping.");
+  }
+  const optionsOut = {};
+  for (const key of Object.keys(dataframe)) {
+    if (key === "max-rows") {
+      optionsOut.maxRows = parseDataFrameLimit("uv-python.dataframe.max-rows", dataframe[key]);
+    } else if (key === "max-cols" || key === "max-columns") {
+      optionsOut.maxColumns = parseDataFrameLimit(`uv-python.dataframe.${key}`, dataframe[key]);
+    } else {
+      throw new Error(`Unsupported uv-python metadata 'uv-python.dataframe.${key}'. Supported keys: max-rows, max-cols.`);
+    }
+  }
+  return optionsOut;
+}
+function parseDataFrameLimit(key, value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" ? Number(value.trim()) : NaN;
+  if (!Number.isInteger(numberValue) || numberValue < 3) {
+    throw new Error(`uv-python metadata '${key}' must be an integer greater than or equal to 3.`);
+  }
+  return numberValue;
+}
 function mergeParams(merged, value, sourceName) {
   if (value === void 0) {
     return;
@@ -1694,6 +1786,7 @@ async function runPythonRunner(input) {
     projectRoot: input.projectRoot,
     figureDir: input.figureDir,
     params: input.params,
+    dataframe: input.dataframeOptions,
     responsePath
   };
   await Deno.writeTextFile(requestPath, JSON.stringify(request, null, 2));

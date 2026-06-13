@@ -298,6 +298,9 @@ assert_no_jupyter_dependency_regression
 log "rendering options parity fixture"
 quarto render examples/parity/options.qmd
 
+log "rendering R-lab compatibility parity fixture"
+quarto render examples/parity/r-lab-compat.qmd
+
 log "rendering display parity fixture"
 quarto render examples/parity/display.qmd
 
@@ -336,6 +339,34 @@ assert_file_contains "${options_html}" "include false executed"
 assert_file_contains "${options_html}" "eval false skipped False"
 assert_file_contains "${options_html}" "allowed parity error"
 assert_file_contains "${options_html}" "continued after parity options error"
+
+compat_html="examples/parity/r-lab-compat.html"
+assert_file_contains "${compat_html}" "DOC_MESSAGE_CHUNK_EXECUTED"
+assert_file_not_contains "${compat_html}" "DOC_MESSAGE_SUPPRESSED"
+assert_file_contains "${compat_html}" "CHUNK_MESSAGE_VISIBLE"
+assert_file_not_contains "${compat_html}" "CHUNK_MESSAGE_SUPPRESSED"
+assert_file_contains "${compat_html}" '<h3 class="anchored" data-anchor-id="results-alias-raw-heading">Results Alias Raw Heading</h3>'
+assert_file_not_contains "${compat_html}" "RESULTS_HIDE_SHOULD_NOT_RENDER"
+assert_file_contains "${compat_html}" "COMMON_OPTIONS_ACCEPTED"
+assert_file_contains "${compat_html}" "DISPLAY_ALL_TEXT"
+assert_file_contains "${compat_html}" "<strong>DISPLAY_ALL_MARKDOWN</strong>"
+assert_file_contains "${compat_html}" "Axes last expression renders as a figure"
+assert_file_contains "${compat_html}" '<a href="#fig-compat-axes" class="quarto-xref">Figure&nbsp;1</a>'
+assert_file_not_contains "${compat_html}" "&lt;Axes:"
+assert_file_not_contains "${compat_html}" "matplotlib.figure.Figure"
+assert_file_contains "${compat_html}" "Display all figure before text"
+assert_file_contains "${compat_html}" "AFTER_DISPLAY_ALL_FIGURE"
+uv run python - <<'PY'
+from pathlib import Path
+
+html = Path("examples/parity/r-lab-compat.html").read_text(encoding="utf-8")
+figure_index = html.find("Display all figure before text")
+text_index = html.find("AFTER_DISPLAY_ALL_FIGURE")
+if figure_index == -1 or text_index == -1:
+    raise SystemExit("compat fixture missing display_all figure ordering markers")
+if figure_index > text_index:
+    raise SystemExit("display_all figure rendered after following text")
+PY
 
 display_html="examples/parity/display.html"
 assert_file_contains "${display_html}" "RUNTIME_IMPORT_ENGINE_PACKAGE True"
@@ -541,6 +572,7 @@ assert_render_fails examples/parity/figures-invalid-metadata-no-figure.qmd "uv-p
 log "checking invalid inline failures"
 assert_render_fails examples/parity/inline-invalid-exception.qmd "uv-python failed while executing inline expression 1."
 assert_render_fails examples/parity/inline-invalid-exception.qmd "ZeroDivisionError"
+assert_render_fails examples/parity/inline-invalid-figure.qmd "uv-python inline expressions do not support figure output"
 
 log "checking warning runner regressions"
 assert_warning_runner_regressions

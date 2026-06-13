@@ -225,6 +225,8 @@ Current implementation uses:
   dependency source for repeated `uv run --with <requirement>` arguments; raw
   `options.target.metadata` is not used for this metadata, so Quarto's merged
   format metadata is the single source of truth
+- `options.format.metadata["uv-python"].dataframe` as the document/project source
+  for optional dataframe display limits (`max-rows`, `max-cols`)
 - `options.format.identifier`, `execute`, `render`, `pandoc`, `language`, and `metadata` to write the uv-python `QUARTO_EXECUTE_INFO` JSON file
 - `quarto.path.inputFilesDir(documentPath)` for support directory naming
 - `ExecuteResult.supporting` to register support directories containing figures
@@ -281,3 +283,40 @@ When no entries are present, the command remains:
 ```text
 uv run python runner.py request.json response.json
 ```
+
+## Dataframe display metadata
+
+The R-lab compatibility slice adds optional dataframe display limits under the
+same merged metadata source:
+
+```yaml
+uv-python:
+  dataframe:
+    max-rows: 50
+    max-cols: 20
+```
+
+The engine reads this only from `options.format.metadata["uv-python"].dataframe`.
+Supported keys are `max-rows`, `max-cols`, and `max-columns` as an alias for
+`max-cols`. Values must be integers greater than or equal to 3 and are passed to
+the runner request as `dataframe.maxRows` and `dataframe.maxColumns`. The Python
+runtime applies them before executing chunks.
+
+## R-lab compatibility options
+
+The engine accepts a few high-value static R/knitr-port options without becoming
+a knitr compatibility layer:
+
+- `message` is a boolean execution option. `message: false` suppresses ordinary
+  captured stderr text; Python warnings remain controlled by `warning`.
+- `results: asis` maps to `output: asis`.
+- `results: hide` maps to `output: false`.
+- `results: markup` and `results: hold` are accepted as no-ops.
+- `collapse` is parsed as a boolean and accepted as a no-op.
+- `comment` is parsed as a string and accepted as a no-op.
+
+When merged metadata contains both canonical `output` and compatibility
+`results`, `output` takes precedence. Inside a chunk's `#|` option comments,
+source order is preserved, so the later option line wins.
+
+Unknown options still fail fast.

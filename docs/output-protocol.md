@@ -334,6 +334,8 @@ Semantics:
 - optional plotnine `ggplot` objects are drawn with `draw(show=False)` and saved
   through the same static figure event path; returned matplotlib figures are
   captured directly so they do not depend on `plt.get_fignums()` visibility;
+- explicit matplotlib `Figure`/`Axes` display also uses this same static figure
+  event path, with `Axes` resolved to their parent figure;
 - complex computational figure layouts, `fig-subcap`, custom `layout`, dark/light
   `renderings`, LaTeX-specific `fig-pos`/`fig-env`, and interactive figures are
   deferred;

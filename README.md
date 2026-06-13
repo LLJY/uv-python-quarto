@@ -99,6 +99,18 @@ The engine reads `uv-python.with` from Quarto's merged format metadata
 package requirement strings; entries beginning with `-` are rejected before uv is
 invoked.
 
+Dataframe display limits can also be tuned per document/project:
+
+```yaml
+uv-python:
+  dataframe:
+    max-rows: 50
+    max-cols: 20
+```
+
+Both values must be integers greater than or equal to 3. Defaults are 25 rows and
+12 columns.
+
 ## License
 
 GPLv2. See `LICENSE`.
@@ -164,16 +176,22 @@ figures, and Quarto-native static UI affordances.
 
 - document-level `execute` defaults from Quarto's merged format execution
   options, overridden by chunk-local `#|` options for: `eval`, `echo`,
-  `include`, `output`, `warning`, and `error`
+  `include`, `output`, `message`, `warning`, and `error`
 - defaults when Quarto does not provide a value: `eval=true`, `echo=false`,
-  `include=true`, `output=true`, `warning=true`, `error=false`
+  `include=true`, `output=true`, `message=true`, `warning=true`, `error=false`
 - `echo: fenced` tutorial output and `output: asis` raw Markdown stdout
+- R/knitr-port compatibility for `message: false`, which suppresses ordinary
+  stderr text, plus accepted common no-op/alias options: `results` (`asis` maps
+  to raw Markdown output, `hide` maps to hidden output, `markup`/`hold` are
+  accepted), `collapse`, and `comment`
 - shared Python state across chunks in a single document render
 - stdout/stderr text capture
 - Python warnings captured as separate warning events; `warning: false`
   suppresses those warning events but does not suppress ordinary stderr text
 - importable-only no-Jupyter display API:
-  `from uv_python_runtime import display, Markdown, HTML, Text`
+  `from uv_python_runtime import display, display_all, Markdown, HTML, Text`
+- `display_all(...)` emits several display events in order, which is useful when
+  porting R chunks that showed several intermediate objects
 - display events for plain text, explicit Markdown, and author-trusted raw HTML;
   raw HTML is not sanitized and is primarily validated for static HTML output
 - explicit Markdown pipe tables through `display(Markdown(...))`, with
@@ -192,6 +210,8 @@ figures, and Quarto-native static UI affordances.
 - disallowed errors fail the render with runner diagnostics
 - matplotlib capture with the headless `Agg` backend; PNG remains the default,
   with `fig-format: svg` also supported
+- matplotlib `Figure` and `Axes` objects returned as last expressions or passed
+  to `display(...)` render as static figures, improving seaborn/matplotlib ports
 - optional plotnine `ggplot` objects render as static matplotlib-backed figures
   through `draw(show=False)` without Jupyter/IPython display protocols
 - document/format and chunk-level `fig-width`, `fig-height`, `fig-dpi`, and
@@ -250,8 +270,9 @@ explicitly not part of this static parity slice:
 - polars LazyFrame auto-collection, pandas conversion, and advanced dtype
   formatting; polars `to_dicts()` converts to Python values and may truncate
   nanosecond temporal values to microseconds, and `Series.to_list()` copies data;
-- huge dataframe pagination; the internal table formatter emits up to 25 rows and
-  12 columns, inserting ellipsis markers when truncating;
+- huge dataframe pagination; the internal table formatter emits up to the
+  configured display limits, defaulting to 25 rows and 12 columns and inserting
+  ellipsis markers when truncating;
 - exact ggplot2/tidyverse parity; plotnine support is static and optional;
 - complex tables, table panels, subtables, and arbitrary HTML table processing;
 - Plotly, widgets, interactive figures, arbitrary MIME bundles, and rich

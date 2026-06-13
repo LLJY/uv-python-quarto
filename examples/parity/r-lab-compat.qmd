@@ -1,0 +1,103 @@
+---
+title: "uv-python R lab compatibility parity"
+engine: uv-python
+format: html
+execute:
+  echo: false
+  message: false
+---
+
+This fixture covers small compatibility affordances useful when porting static
+R/knitr labs to uv-python.
+
+Document-level `message: false` suppresses ordinary stderr text.
+
+```{python}
+import sys
+
+sys.stderr.write("DOC_MESSAGE_SUPPRESSED\n")
+print("DOC_MESSAGE_CHUNK_EXECUTED")
+```
+
+Chunk-local `message: true` can opt stderr text back in.
+
+```{python}
+#| message: true
+import sys
+
+_ = sys.stderr.write("CHUNK_MESSAGE_VISIBLE\n")
+```
+
+Chunk-local `message: false` also suppresses stderr.
+
+```{python}
+#| message: false
+import sys
+
+_ = sys.stderr.write("CHUNK_MESSAGE_SUPPRESSED\n")
+```
+
+Knitr-style `results: asis` is accepted as an alias for raw Markdown output.
+
+```{python}
+#| results: asis
+print("### Results Alias Raw Heading\n")
+```
+
+Knitr-style `results: hide` hides output.
+
+```{python}
+#| results: hide
+print("RESULTS_HIDE_SHOULD_NOT_RENDER")
+```
+
+Common no-op knitr options are accepted for easier ports.
+
+```{python}
+#| collapse: true
+#| comment: ""
+print("COMMON_OPTIONS_ACCEPTED")
+```
+
+`display_all()` emits several display objects in source order.
+
+```{python}
+from uv_python_runtime import Markdown, Text, display_all
+
+display_all(Text("DISPLAY_ALL_TEXT"), Markdown("**DISPLAY_ALL_MARKDOWN**"))
+```
+
+Matplotlib `Axes` objects from last expressions render as static figures, as in
+@fig-compat-axes.
+
+```{python}
+#| label: fig-compat-axes
+#| fig-cap: Axes last expression renders as a figure
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots()
+ax.plot([1, 2, 3], [1, 4, 9])
+ax.set_title("AXES_LAST_EXPR_FIGURE")
+ax
+```
+
+Explicit matplotlib `Figure` display also renders as a static figure.
+
+```{python}
+from uv_python_runtime import display
+
+fig2, ax2 = plt.subplots()
+ax2.plot([1, 2, 3], [3, 2, 1])
+ax2.set_title("FIGURE_DISPLAY_FIGURE")
+display(fig2)
+```
+
+Figure values in `display_all()` preserve display ordering with following text.
+
+```{python}
+#| fig-cap: Display all figure before text
+fig3, ax3 = plt.subplots()
+ax3.plot([1, 2, 3], [2, 3, 5])
+ax3.set_title("DISPLAY_ALL_FIGURE_BEFORE_TEXT")
+display_all(fig3, Text("AFTER_DISPLAY_ALL_FIGURE"))
+```

@@ -67,6 +67,38 @@ def display(value: object) -> None:
     _display_value(value, source="display")
 
 
+def display_all(*values: object) -> None:
+    """Emit one display event for each value, in order.
+
+    This is a small uv-python helper for porting R/knitr-style chunks that show
+    several intermediate objects. It intentionally does not change Python's
+    last-expression execution semantics.
+    """
+
+    for value in values:
+        _display_value(value, source="display")
+
+
+def _configure(dataframe: dict[str, Any] | None = None) -> None:
+    global _MAX_TABLE_ROWS, _MAX_TABLE_COLUMNS
+    if dataframe is None:
+        dataframe = {}
+    if not isinstance(dataframe, dict):
+        raise ValueError("uv_python_runtime dataframe configuration must be a mapping")
+    max_rows = dataframe.get("maxRows")
+    max_columns = dataframe.get("maxColumns")
+    if max_rows is not None:
+        _MAX_TABLE_ROWS = _configured_table_limit("maxRows", max_rows)
+    if max_columns is not None:
+        _MAX_TABLE_COLUMNS = _configured_table_limit("maxColumns", max_columns)
+
+
+def _configured_table_limit(name: str, value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 3:
+        raise ValueError(f"uv_python_runtime dataframe {name} must be an integer >= 3")
+    return value
+
+
 def _set_display_handler(handler: DisplayHandler) -> None:
     global _display_handler
     _display_handler = handler
@@ -113,12 +145,12 @@ def _display_representation(
             {"source": "dataframe", "displaySource": source},
         )
 
-    plotnine_figure = _plotnine_figure(value)
-    if plotnine_figure is not None:
+    figure = _figure_display_value(value)
+    if figure is not None:
         return (
             _FIGURE_EVENT_KIND,
-            {"figure": plotnine_figure},
-            {"source": "plotnine", "displaySource": source},
+            {"figure": figure},
+            {"source": _figure_display_source(value), "displaySource": source},
         )
 
     markdown_repr = _call_string_protocol(value, "_repr_markdown_")
@@ -231,6 +263,42 @@ def _plotnine_figure(value: object) -> object | None:
     return value.draw(show=False)
 
 
+def _figure_display_value(value: object) -> object | None:
+    plotnine_figure = _plotnine_figure(value)
+    if plotnine_figure is not None:
+        return plotnine_figure
+    return _matplotlib_figure(value)
+
+
+def _figure_display_source(value: object) -> str:
+    try:
+        from plotnine import ggplot  # type: ignore[import-not-found]
+    except Exception:
+        ggplot = None  # type: ignore[assignment]
+    if ggplot is not None and isinstance(value, ggplot):
+        return "plotnine"
+    return "matplotlib"
+
+
+def _matplotlib_figure(value: object) -> object | None:
+    try:
+        from matplotlib.axes import Axes  # type: ignore[import-not-found]
+        from matplotlib.figure import Figure  # type: ignore[import-not-found]
+    except Exception:
+        return None
+
+    if isinstance(value, Figure):
+        return value
+    if isinstance(value, Axes):
+        return value.figure
+
+    for attribute in ("figure", "fig"):
+        figure = getattr(value, attribute, None)
+        if isinstance(figure, Figure):
+            return figure
+    return None
+
+
 def _index_header(index: object) -> str:
     names = getattr(index, "names", None)
     if isinstance(names, (list, tuple)) and any(name is not None for name in names):
@@ -281,20 +349,20 @@ def _truncate_table(
 ) -> tuple[list[object], list[list[object]]]:
     if len(headers) > _MAX_TABLE_COLUMNS:
         frozen = min(max(frozen_columns, 0), _MAX_TABLE_COLUMNS - 2, len(headers))
-        available_data_columns = _MAX_TABLE_COLUMNS - frozen - 1
-        leading_count = max(1, available_data_columns // 2)
-        trailing_count = max(1, available_data_columns - leading_count)
+        visible_data_columns = _MAX_TABLE_COLUMNS - frozen - 1
+        leading_count = max(0, (visible_data_columns + 1) // 2)
+        trailing_count = max(0, visible_data_columns - leading_count)
         leading_indices = list(range(frozen, min(frozen + leading_count, len(headers))))
-        trailing_start = max(frozen + len(leading_indices), len(headers) - trailing_count)
-        trailing_indices = list(range(trailing_start, len(headers)))
-        keep_indices = [*range(frozen), *leading_indices, *trailing_indices]
-        headers = [headers[index] for index in keep_indices[: frozen + len(leading_indices)]] + [
-            _ELLIPSIS
-        ] + [headers[index] for index in trailing_indices]
+        trailing_indices = []
+        if trailing_count > 0:
+            trailing_start = max(frozen + len(leading_indices), len(headers) - trailing_count)
+            trailing_indices = list(range(trailing_start, len(headers)))
+        kept_before_ellipsis = [*range(frozen), *leading_indices]
+        headers = [headers[index] for index in kept_before_ellipsis] + [_ELLIPSIS] + [
+            headers[index] for index in trailing_indices
+        ]
         rows = [
-            [row[index] for index in keep_indices[: frozen + len(leading_indices)]] + [_ELLIPSIS] + [
-                row[index] for index in trailing_indices
-            ]
+            [row[index] for index in kept_before_ellipsis] + [_ELLIPSIS] + [row[index] for index in trailing_indices]
             for row in rows
         ]
 
@@ -356,4 +424,4 @@ def _stringify_scalar(value: object) -> str:
         return repr(value)
 
 
-__all__ = ["display", "Markdown", "HTML", "Text"]
+__all__ = ["display", "display_all", "Markdown", "HTML", "Text"]

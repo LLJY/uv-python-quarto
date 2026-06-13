@@ -111,23 +111,13 @@ def _figure_mime(figure_format: str) -> str:
     return "image/png"
 
 
-def _capture_figures(
+def _save_figure(
     figure_dir: Path,
     chunk_index: int,
     figure_options: dict[str, Any],
-    explicit_figures: list[Any] | None = None,
-) -> list[dict[str, Any]]:
-    try:
-        import matplotlib.pyplot as plt
-    except Exception:
-        return []
-
-    figures: list[dict[str, Any]] = []
-    explicit_figures = explicit_figures or []
-    fignums = list(plt.get_fignums())
-    if not fignums and not explicit_figures:
-        return figures
-
+    figure: Any,
+    figure_number: int,
+) -> dict[str, Any]:
     figure_format = str(figure_options.get("format", "png"))
     if figure_format not in {"png", "svg"}:
         raise ValueError(f"Unsupported uv-python matplotlib figure format: {figure_format}")
@@ -139,33 +129,43 @@ def _capture_figures(
         savefig_kwargs["dpi"] = float(figure_options["dpi"])
 
     figure_dir.mkdir(parents=True, exist_ok=True)
-    captured_ids: set[int] = set()
+    filename = f"figure-{chunk_index + 1}-{figure_number}.{figure_format}"
+    path = figure_dir / filename
+    if not hasattr(figure, "savefig"):
+        raise TypeError("uv-python figure capture expected a matplotlib Figure with savefig().")
+    figure.savefig(path, **savefig_kwargs)
+    return {
+        "path": str(path),
+        "mime": _figure_mime(figure_format),
+        "figureIndex": figure_number - 1,
+    }
 
-    def save_figure(figure: Any, figure_number: int) -> None:
-        filename = f"figure-{chunk_index + 1}-{figure_number}.{figure_format}"
-        path = figure_dir / filename
-        if not hasattr(figure, "savefig"):
-            raise TypeError("uv-python figure capture expected a matplotlib Figure with savefig().")
-        figure.savefig(path, **savefig_kwargs)
-        figures.append(
-            {
-                "path": str(path),
-                "mime": _figure_mime(figure_format),
-                "figureIndex": figure_number - 1,
-            }
-        )
 
-    figure_number = 1
-    for figure in explicit_figures:
-        captured_ids.add(id(figure))
-        save_figure(figure, figure_number)
-        figure_number += 1
+def _capture_figures(
+    figure_dir: Path,
+    chunk_index: int,
+    figure_options: dict[str, Any],
+    captured_ids: set[int] | None = None,
+    start_figure_number: int = 1,
+) -> list[dict[str, Any]]:
+    try:
+        import matplotlib.pyplot as plt
+    except Exception:
+        return []
 
+    figures: list[dict[str, Any]] = []
+    captured_ids = captured_ids or set()
+    fignums = list(plt.get_fignums())
+    if not fignums:
+        return figures
+
+    figure_number = start_figure_number
     for fignum in fignums:
         figure = plt.figure(fignum)
         if id(figure) in captured_ids:
             continue
-        save_figure(figure, figure_number)
+        captured_ids.add(id(figure))
+        figures.append(_save_figure(figure_dir, chunk_index, figure_options, figure, figure_number))
         figure_number += 1
     plt.close("all")
     return figures
@@ -349,6 +349,9 @@ def run(request_path: Path, response_path: Path) -> int:
         extension_dir,
         [project_root, document_cwd],
     )
+    configure_runtime = getattr(display_runtime, "_configure", None)
+    if callable(configure_runtime):
+        configure_runtime(dataframe=request.get("dataframe", {}))
     matplotlib_baseline = _matplotlib_baseline_options()
 
     shared_globals: dict[str, Any] = {
@@ -428,7 +431,8 @@ def run(request_path: Path, response_path: Path) -> int:
         exc_traceback = ""
         exc: BaseException | None = None
         error_event: dict[str, Any] | None = None
-        pending_figures: list[Any] = []
+        captured_figure_ids: set[int] = set()
+        next_figure_number = 1
 
         def flush_text_events() -> None:
             stdout_text = stdout.getvalue()
@@ -443,7 +447,7 @@ def run(request_path: Path, response_path: Path) -> int:
                 )
                 stdout.seek(0)
                 stdout.truncate(0)
-            if stderr_text:
+            if stderr_text and options.get("message", True):
                 add_event(
                     "stderr",
                     index,
@@ -451,22 +455,32 @@ def run(request_path: Path, response_path: Path) -> int:
                     {"stream": "stderr"},
                     inline_index,
                 )
-                stderr.seek(0)
-                stderr.truncate(0)
+            stderr.seek(0)
+            stderr.truncate(0)
 
         def emit_display_event(
             kind: str,
             payload: dict[str, Any],
             metadata: dict[str, Any] | None = None,
         ) -> None:
+            nonlocal next_figure_number
             flush_text_events()
             if kind == RUNTIME_FIGURE_EVENT_KIND:
                 if inline_index is not None:
                     raise RuntimeError("uv-python inline expressions do not support figure output.")
                 figure = payload.get("figure")
                 if figure is None or not hasattr(figure, "savefig"):
-                    raise TypeError("uv_python_runtime plotnine display expected a matplotlib Figure.")
-                pending_figures.append(figure)
+                    raise TypeError("uv_python_runtime figure display expected a matplotlib Figure.")
+                if options.get("output", True) and id(figure) not in captured_figure_ids:
+                    captured_figure_ids.add(id(figure))
+                    saved_figure = _save_figure(figure_dir, index, figure_options, figure, next_figure_number)
+                    add_event(
+                        "figure",
+                        index,
+                        {"path": saved_figure["path"], "mime": saved_figure["mime"]},
+                        {"figureIndex": int(saved_figure["figureIndex"])},
+                    )
+                    next_figure_number += 1
                 return
             if inline_index is not None and kind in {"display_markdown", "display_html"}:
                 source = (metadata or {}).get("source")
@@ -498,6 +512,12 @@ def run(request_path: Path, response_path: Path) -> int:
             elif isinstance(value, (markdown_type, html_type)):
                 display_runtime._display_value(value, source="inline_expression")
             else:
+                figure_probe = getattr(display_runtime, "_figure_display_value", None)
+                if callable(figure_probe):
+                    figure = figure_probe(value)
+                    if figure is not None:
+                        _close_figures([figure])
+                        raise RuntimeError("uv-python inline expressions do not support figure output.")
                 emit_display_event(
                     "display_text",
                     {"text": str(value)},
@@ -569,9 +589,15 @@ def run(request_path: Path, response_path: Path) -> int:
                 )
             fatal_error = bool(exc_traceback and (item_kind == "inline" or not options.get("error", False)))
             if fatal_error:
-                _close_figures(pending_figures)
+                _close_figures()
             elif item_kind == "chunk" and options.get("output", True):
-                for figure in _capture_figures(figure_dir, index, figure_options, pending_figures):
+                for figure in _capture_figures(
+                    figure_dir,
+                    index,
+                    figure_options,
+                    captured_figure_ids,
+                    next_figure_number,
+                ):
                     figure_index = int(figure["figureIndex"])
                     add_event(
                         "figure",
@@ -580,7 +606,7 @@ def run(request_path: Path, response_path: Path) -> int:
                         {"figureIndex": figure_index},
                     )
             else:
-                _close_figures(pending_figures)
+                _close_figures()
 
         if exc_traceback and (item_kind == "inline" or not options.get("error", False)):
             response["failed"] = True

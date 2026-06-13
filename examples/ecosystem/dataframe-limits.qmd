@@ -1,0 +1,29 @@
+---
+title: "uv-python dataframe display limits"
+engine: uv-python
+format: html
+execute:
+  echo: false
+uv-python:
+  with:
+    - pandas
+  dataframe:
+    max-rows: 5
+    max-cols: 4
+---
+
+This fixture uses transient pandas and custom dataframe display limits.
+
+```{python}
+import pandas as pd
+
+df = pd.DataFrame(
+    {
+        f"c{column}": [f"r{row}c{column}" for row in range(8)]
+        for column in range(6)
+    },
+    index=pd.Index([f"row-{row}" for row in range(8)], name="row_id"),
+)
+
+df
+```

@@ -134,6 +134,9 @@ quarto render examples/ecosystem/polars.qmd
 log "rendering plotnine ecosystem fixture"
 quarto render examples/ecosystem/plotnine.qmd
 
+log "rendering dataframe limit ecosystem fixture"
+quarto render examples/ecosystem/dataframe-limits.qmd
+
 log "checking pandas output"
 pandas_html="examples/ecosystem/pandas.html"
 assert_file_contains "${pandas_html}" "Table&nbsp;1: Pandas dataframe rendered by uv-python"
@@ -181,6 +184,17 @@ artifacts = sorted(path.name for path in (html_path.parent / "plotnine_files" / 
 if artifacts != ["figure-1-1.png", "figure-2-1.png"]:
     raise SystemExit(f"unexpected plotnine figure artifacts: {artifacts!r}")
 PY
+
+log "checking dataframe display limits"
+limits_html="examples/ecosystem/dataframe-limits.html"
+assert_file_contains "${limits_html}" "<th>row_id</th>"
+assert_file_contains "${limits_html}" "<th>c0</th>"
+assert_file_contains "${limits_html}" "<th>c5</th>"
+assert_file_contains "${limits_html}" "…"
+assert_file_contains "${limits_html}" "r0c0"
+assert_file_contains "${limits_html}" "r7c5"
+assert_file_not_contains "${limits_html}" "<th>c3</th>"
+assert_file_not_contains "${limits_html}" "r3c0"
 
 log "checking invalid uv-python.with fixtures"
 assert_render_fails_before_uv examples/ecosystem/invalid-with-scalar.qmd "uv-python metadata 'uv-python.with' must be a list"

@@ -2,7 +2,7 @@
 
 Status: implemented for Phase 4 of Slice 3, reused by Phase 7 inline output,
 validated by Phase 8 parity fixtures, and extended with optional pandas, polars,
-and plotnine static ecosystem rendering.
+plotnine static ecosystem rendering, and small R-lab compatibility helpers.
 The current implementation provides the canonical importable-only
 `uv_python_runtime` helpers, display events, object protocol fallback order,
 narrow last-expression display, and explicit `Markdown`/`HTML` wrapper rendering
@@ -18,17 +18,18 @@ pretending to implement `IPython.display`.
 The canonical import path is:
 
 ```python
-from uv_python_runtime import display, Markdown, HTML, Text
+from uv_python_runtime import display, display_all, Markdown, HTML, Text
 ```
 
 Canonical usage:
 
 ```python
-from uv_python_runtime import display, Markdown, HTML, Text
+from uv_python_runtime import display, display_all, Markdown, HTML, Text
 
 display(Text("literal **not markdown**"))
 display(Markdown("**rendered as Markdown**"))
 display(HTML("<strong>trusted author HTML</strong>"))
+display_all(Text("first"), Markdown("**second**"))
 ```
 
 `uv_python_runtime` is deliberately not named `pymd`, so it does not collide with
@@ -58,7 +59,8 @@ The initial runtime module should expose these small wrappers:
 - `Markdown(markdown: str)`: render as raw Markdown;
 - `HTML(html: str)`: render as author-trusted raw HTML;
 - `display(value: object)`: inspect and emit the first supported representation
-  according to the object protocol order below.
+  according to the object protocol order below;
+- `display_all(*values: object)`: emit one display event for each value in order.
 
 Wrapper instances should be simple Python objects owned by `uv_python_runtime`.
 They should not require pandas, polars, tabulate, IPython, nbformat, or an HTML
@@ -77,14 +79,19 @@ parser.
    - polars `DataFrame` / `Series` -> one dependency-free Markdown pipe table.
 3. Optional plotnine helper, when plotnine is installed:
    - plotnine `ggplot` -> static matplotlib `Figure` via `draw(show=False)`.
-4. `_repr_markdown_()` if present and callable -> `display_markdown` event.
-5. `_repr_html_()` if present and callable -> `display_html` event only when the
+4. Matplotlib figure helpers, when matplotlib is installed:
+   - `matplotlib.figure.Figure` -> static figure event;
+   - `matplotlib.axes.Axes` -> its parent static figure event;
+   - simple figure-like objects with a `figure` or `fig` attribute pointing at a
+     matplotlib `Figure` -> static figure event.
+5. `_repr_markdown_()` if present and callable -> `display_markdown` event.
+6. `_repr_html_()` if present and callable -> `display_html` event only when the
    author-trusted HTML policy is enabled for the render; otherwise degrade or
    fail according to the output protocol's unsupported-display rule.
-6. `to_markdown()` if present and callable -> `display_markdown` event.
-7. `to_html()` if present and callable -> `display_html` event only under the
+7. `to_markdown()` if present and callable -> `display_markdown` event.
+8. `to_html()` if present and callable -> `display_html` event only under the
    author-trusted HTML policy.
-8. `repr(value)` fallback -> `display_text` event.
+9. `repr(value)` fallback -> `display_text` event.
 
 Protocol caveats:
 
@@ -197,8 +204,10 @@ The internal dataframe table formatter includes the index for pandas dataframes
 and series, uses ordinal indexes for polars series, stringifies MultiIndex and
 other complex labels, renders missing values as empty cells, replaces embedded
 newlines with `<br>`, escapes Markdown-sensitive characters, and encodes literal
-cell pipes as `&#124;`. It emits at most 25 rows and 12 columns, inserting ellipsis
-markers when truncating.
+cell pipes as `&#124;`. It emits at most 25 rows and 12 columns by default, inserting
+ellipsis markers when truncating. Documents can tune those limits with
+`uv-python.dataframe.max-rows` and `uv-python.dataframe.max-cols`; both must be
+integers greater than or equal to 3.
 
 Deferred optional-ecosystem work includes pandas Styler, pandas MultiIndex parity
 beyond fallback stringification, polars LazyFrame auto-collection, dataframe
