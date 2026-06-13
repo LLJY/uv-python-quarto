@@ -779,7 +779,7 @@ wheels = [
 ]
 
 [[package]]
-name = "uv-python-quarto-spike"
+name = "uv-python-quarto"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

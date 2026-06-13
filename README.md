@@ -1,5 +1,7 @@
 # uv-python Quarto engine
 
+My prof made me learn R. I said no. So here you go.
+
 This repository contains a uv-native Quarto engine extension named `uv-python`.
 It renders Python-powered `.qmd` documents without Jupyter kernels, `nbclient`,
 or notebook execution machinery. Documents opt in explicitly with:
@@ -47,9 +49,14 @@ quarto call build-ts-extension
   HTML from Python.
 - `docs/` — parity matrix, output protocol, display API, and runtime API notes.
 
-This directory can be initialized as a git repository directly. Generated Quarto
-outputs are ignored; source examples and extension files are intended to be
-tracked. No commit is required to use the local extension.
+Generated Quarto outputs are ignored; source examples and extension files are
+intended to be tracked.
+
+## License
+
+GPLv2. See `LICENSE`.
+
+The license file was fetched from the GNU project rather than handwritten.
 
 ## Validation
 
