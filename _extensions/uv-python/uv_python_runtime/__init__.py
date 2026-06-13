@@ -8,12 +8,18 @@ layer and does not provide MIME bundles, display IDs, widgets, or magics.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Any, Callable
 
 
 DisplayHandler = Callable[[str, dict[str, Any], dict[str, Any] | None], None]
 
 _display_handler: DisplayHandler | None = None
+_MAX_TABLE_ROWS = 25
+_MAX_TABLE_COLUMNS = 12
+_ELLIPSIS = "…"
+_MARKDOWN_CELL_ESCAPES = frozenset(r"\`*_{}[]()#+-.!~^")
+_FIGURE_EVENT_KIND = "_uv_python_matplotlib_figure"
 
 
 @dataclass(frozen=True)
@@ -52,7 +58,8 @@ class HTML:
 def display(value: object) -> None:
     """Emit exactly one display event for ``value``.
 
-    Representation order is: explicit uv-python wrappers, ``_repr_markdown_()``,
+    Representation order is: explicit uv-python wrappers, optional dataframe and
+    plotnine helpers when their packages are installed, ``_repr_markdown_()``,
     ``_repr_html_()``, ``to_markdown()``, ``to_html()``, then ``repr(value)`` as
     plain text.
     """
@@ -96,6 +103,22 @@ def _display_representation(
             "display_html",
             {"html": value.html},
             {"source": source, "trusted": True},
+        )
+
+    dataframe_markdown = _dataframe_like_markdown(value)
+    if dataframe_markdown is not None:
+        return (
+            "display_markdown",
+            {"markdown": dataframe_markdown},
+            {"source": "dataframe", "displaySource": source},
+        )
+
+    plotnine_figure = _plotnine_figure(value)
+    if plotnine_figure is not None:
+        return (
+            _FIGURE_EVENT_KIND,
+            {"figure": plotnine_figure},
+            {"source": "plotnine", "displaySource": source},
         )
 
     markdown_repr = _call_string_protocol(value, "_repr_markdown_")
@@ -144,6 +167,193 @@ def _call_string_protocol(value: object, name: str) -> str | None:
     if not isinstance(result, str):
         raise TypeError(f"uv_python_runtime display protocol {name}() must return str")
     return result
+
+
+def _dataframe_like_markdown(value: object) -> str | None:
+    pandas_markdown = _pandas_markdown(value)
+    if pandas_markdown is not None:
+        return pandas_markdown
+    return _polars_markdown(value)
+
+
+def _pandas_markdown(value: object) -> str | None:
+    try:
+        import pandas as pd  # type: ignore[import-not-found]
+    except Exception:
+        return None
+
+    if isinstance(value, pd.DataFrame):
+        index_header = _index_header(value.index)
+        headers = [index_header, *[_stringify_header(column, "") for column in value.columns]]
+        rows = [list(row) for row in value.itertuples(index=True, name=None)]
+        return _markdown_pipe_table(headers, rows, frozen_columns=1)
+
+    if isinstance(value, pd.Series):
+        value_header = _stringify_header(getattr(value, "name", None), "value")
+        headers = [_index_header(value.index), value_header]
+        rows = [[index, series_value] for index, series_value in value.items()]
+        return _markdown_pipe_table(headers, rows, frozen_columns=1)
+
+    return None
+
+
+def _polars_markdown(value: object) -> str | None:
+    try:
+        import polars as pl  # type: ignore[import-not-found]
+    except Exception:
+        return None
+
+    if isinstance(value, pl.DataFrame):
+        columns = list(value.columns)
+        headers = [_stringify_header(column, "") for column in columns]
+        rows = [
+            [row.get(column) for column in columns]
+            for row in value.to_dicts()
+        ]
+        return _markdown_pipe_table(headers, rows)
+
+    if isinstance(value, pl.Series):
+        value_header = _stringify_header(getattr(value, "name", None), "value")
+        rows = [[index, series_value] for index, series_value in enumerate(value.to_list())]
+        return _markdown_pipe_table(["index", value_header], rows, frozen_columns=1)
+
+    return None
+
+
+def _plotnine_figure(value: object) -> object | None:
+    try:
+        from plotnine import ggplot  # type: ignore[import-not-found]
+    except Exception:
+        return None
+
+    if not isinstance(value, ggplot):
+        return None
+    return value.draw(show=False)
+
+
+def _index_header(index: object) -> str:
+    names = getattr(index, "names", None)
+    if isinstance(names, (list, tuple)) and any(name is not None for name in names):
+        return " / ".join(_stringify_header(name, "") for name in names)
+    return _stringify_header(getattr(index, "name", None), "index")
+
+
+def _stringify_header(value: object, fallback: str) -> str:
+    if value is None:
+        return fallback
+    text = _stringify_scalar(value).strip()
+    return text if text else fallback
+
+
+def _markdown_pipe_table(
+    headers: list[object],
+    rows: list[list[object]],
+    *,
+    frozen_columns: int = 0,
+) -> str:
+    if not headers:
+        headers = ["value"]
+    normalized_rows = [_normalize_row(row, len(headers)) for row in rows]
+    headers, normalized_rows = _truncate_table(headers, normalized_rows, frozen_columns=frozen_columns)
+    formatted_headers = [_format_markdown_table_cell(header) for header in headers]
+    lines = [
+        _pipe_table_row(formatted_headers),
+        _pipe_table_row(["---"] * len(formatted_headers)),
+    ]
+    for row in normalized_rows:
+        lines.append(_pipe_table_row([_format_markdown_table_cell(cell) for cell in row]))
+    return "\n".join(lines) + "\n"
+
+
+def _normalize_row(row: list[object], width: int) -> list[object]:
+    if len(row) == width:
+        return row
+    if len(row) > width:
+        return row[:width]
+    return [*row, *("" for _ in range(width - len(row)))]
+
+
+def _truncate_table(
+    headers: list[object],
+    rows: list[list[object]],
+    *,
+    frozen_columns: int,
+) -> tuple[list[object], list[list[object]]]:
+    if len(headers) > _MAX_TABLE_COLUMNS:
+        frozen = min(max(frozen_columns, 0), _MAX_TABLE_COLUMNS - 2, len(headers))
+        available_data_columns = _MAX_TABLE_COLUMNS - frozen - 1
+        leading_count = max(1, available_data_columns // 2)
+        trailing_count = max(1, available_data_columns - leading_count)
+        leading_indices = list(range(frozen, min(frozen + leading_count, len(headers))))
+        trailing_start = max(frozen + len(leading_indices), len(headers) - trailing_count)
+        trailing_indices = list(range(trailing_start, len(headers)))
+        keep_indices = [*range(frozen), *leading_indices, *trailing_indices]
+        headers = [headers[index] for index in keep_indices[: frozen + len(leading_indices)]] + [
+            _ELLIPSIS
+        ] + [headers[index] for index in trailing_indices]
+        rows = [
+            [row[index] for index in keep_indices[: frozen + len(leading_indices)]] + [_ELLIPSIS] + [
+                row[index] for index in trailing_indices
+            ]
+            for row in rows
+        ]
+
+    if len(rows) > _MAX_TABLE_ROWS:
+        leading_count = _MAX_TABLE_ROWS // 2
+        trailing_count = _MAX_TABLE_ROWS - leading_count - 1
+        rows = [
+            *rows[:leading_count],
+            [_ELLIPSIS] * len(headers),
+            *rows[-trailing_count:],
+        ]
+    return headers, rows
+
+
+def _pipe_table_row(cells: list[str]) -> str:
+    return "| " + " | ".join(cells) + " |"
+
+
+def _format_markdown_table_cell(value: object) -> str:
+    if _is_missing_value(value):
+        return ""
+    text = _stringify_scalar(value).replace("\r\n", "\n").replace("\r", "\n")
+    parts: list[str] = []
+    for character in text:
+        if character == "&":
+            parts.append("&amp;")
+        elif character == "<":
+            parts.append("&lt;")
+        elif character == ">":
+            parts.append("&gt;")
+        elif character == "|":
+            parts.append("&#124;")
+        elif character == "\n":
+            parts.append("<br>")
+        elif character in _MARKDOWN_CELL_ESCAPES:
+            parts.append(f"\\{character}")
+        else:
+            parts.append(character)
+    return "".join(parts)
+
+
+def _is_missing_value(value: object) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, float) and math.isnan(value):
+        return True
+    if type(value).__name__ in {"NAType", "NaTType"}:
+        return True
+    try:
+        return bool(value != value)
+    except Exception:
+        return False
+
+
+def _stringify_scalar(value: object) -> str:
+    try:
+        return str(value)
+    except Exception:
+        return repr(value)
 
 
 __all__ = ["display", "Markdown", "HTML", "Text"]

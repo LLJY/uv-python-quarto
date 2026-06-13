@@ -1,0 +1,46 @@
+---
+title: "uv-python pandas ecosystem rendering"
+engine: uv-python
+format: html
+uv-python:
+  with:
+    - pandas
+execute:
+  echo: false
+---
+
+This fixture uses transient `uv-python.with` dependencies. The captioned pandas
+table is referenced as @tbl-ecosystem-pandas.
+
+```{python}
+#| label: tbl-ecosystem-pandas
+#| tbl-cap: Pandas dataframe rendered by uv-python
+import math
+import pandas as pd
+
+df = pd.DataFrame(
+    {
+        "name": ["Ada", "Grace", "Katherine"],
+        "note": ["literal | pipe", "line one\nline two", "backtick ` cell"],
+        "score": [98, None, math.nan],
+    },
+    index=pd.Index(["row-a", "row-b", "row-c"], name="person_id"),
+)
+
+df
+```
+
+Explicit `display(df)` should use the same dependency-free table formatter.
+
+```{python}
+from uv_python_runtime import display
+
+display(df)
+```
+
+Pandas Series values render as a two-column table with the index and the series
+name.
+
+```{python}
+pd.Series(["alpha", "series | pipe", None], name="series_value")
+```

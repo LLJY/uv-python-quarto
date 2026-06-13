@@ -1,0 +1,13 @@
+---
+title: "uv-python.with runtime diagnostic"
+engine: uv-python
+format: html
+uv-python:
+  with:
+    - pandas
+    - plotnine
+---
+
+```{python}
+raise RuntimeError("ECOSYSTEM_WITH_RUNTIME_ERROR")
+```

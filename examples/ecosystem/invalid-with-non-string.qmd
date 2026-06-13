@@ -1,0 +1,13 @@
+---
+title: "invalid uv-python.with non-string"
+engine: uv-python
+format: html
+uv-python:
+  with:
+    - pandas
+    - 123
+---
+
+```{python}
+print("INVALID_WITH_NON_STRING_SHOULD_NOT_RUN")
+```

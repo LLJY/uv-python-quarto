@@ -20,6 +20,10 @@ the uv project root:
 uv run python <runnerAbs> <requestAbs> <responseAbs>
 ```
 
+Documents can request optional, transient render dependencies with
+`uv-python.with`; those are passed as repeated `uv run --with` flags before the
+runner command. Without that metadata, the default command above is unchanged.
+
 The Python runner keeps one shared global namespace for the document, captures
 stdout, stderr, tracebacks, and static matplotlib figures, then returns a
 versioned ordered event stream for the TypeScript extension to render as
@@ -51,6 +55,49 @@ quarto call build-ts-extension
 
 Generated Quarto outputs are ignored; source examples and extension files are
 intended to be tracked.
+
+## Installation and usage
+
+Install the public Quarto extension from GitHub with:
+
+```bash
+quarto add LLJY/uv-python-quarto
+```
+
+Quarto installs the packaged extension contents under `_extensions/`. The
+repository README, docs, scripts, and examples above `_extensions/` are
+development materials rather than files installed into downstream projects.
+
+For local development in this repository, render after rebuilding the TypeScript
+extension:
+
+```bash
+quarto call build-ts-extension
+quarto render examples/basic.qmd
+```
+
+Optional dataframe and plot rendering libraries stay optional. Add them to your
+own uv project when you want persistent project dependencies:
+
+```bash
+uv add pandas polars plotnine
+```
+
+Or request transient dependencies per document/project render:
+
+```yaml
+engine: uv-python
+uv-python:
+  with:
+    - pandas
+    - polars
+    - plotnine
+```
+
+The engine reads `uv-python.with` from Quarto's merged format metadata
+(`options.format.metadata["uv-python"].with`). It must be a list of non-empty
+package requirement strings; entries beginning with `-` are rejected before uv is
+invoked.
 
 ## License
 
@@ -89,6 +136,19 @@ artifact resolution. Current cross-format coverage is HTML plus GFM in
 `examples/parity/figures-multiformat.qmd`; non-HTML coverage is intentionally
 limited to static figure artifact namespacing/link resolution for this slice.
 
+Run optional ecosystem validation when changing pandas, polars, plotnine, or
+`uv-python.with` behavior:
+
+```bash
+./scripts/ecosystem.sh
+```
+
+The ecosystem harness renders `examples/ecosystem/` with transient dependencies,
+checks dataframe table and plotnine figure cross-references, asserts invalid
+`uv-python.with` metadata fails before uv is invoked, and verifies that
+`pyproject.toml`, `uv.lock`, and plain `uv run python` remain free of pandas,
+polars, plotnine, and tabulate.
+
 Render inspection examples for manual review with:
 
 ```bash
@@ -119,6 +179,12 @@ figures, and Quarto-native static UI affordances.
 - explicit Markdown pipe tables through `display(Markdown(...))`, with
   single-table `tbl-cap` plus `tbl-*` label support for Quarto table captions and
   cross-references
+- optional pandas `DataFrame`/`Series` rendering as dependency-free Markdown pipe
+  tables, detected before pandas HTML or tabulate-backed Markdown fallbacks;
+  `tbl-cap` plus `tbl-*` labels work for single-table chunks
+- optional polars `DataFrame`/`Series` rendering as dependency-free Markdown pipe
+  tables using native extraction (`to_dicts()` and `to_list()`), without pandas
+  conversion; `tbl-cap` plus `tbl-*` labels work for single-table chunks
 - Jupyter-like display of the final top-level expression in a chunk; assignment
   only chunks produce no expression output and full `ipynb-shell-interactivity`
   modes are not implemented
@@ -126,6 +192,8 @@ figures, and Quarto-native static UI affordances.
 - disallowed errors fail the render with runner diagnostics
 - matplotlib capture with the headless `Agg` backend; PNG remains the default,
   with `fig-format: svg` also supported
+- optional plotnine `ggplot` objects render as static matplotlib-backed figures
+  through `draw(show=False)` without Jupyter/IPython display protocols
 - document/format and chunk-level `fig-width`, `fig-height`, `fig-dpi`, and
   feasible `fig-format` (`png`, `svg`, `retina` as PNG) applied to matplotlib
   defaults/savefig; chunk-level sizing is uv-python extension behavior
@@ -167,17 +235,24 @@ Generated files:
 - `examples/inspect/quarto-ui-no-raw-html.html` — Quarto-native tabsets/callouts
   plus uv-python output, without Python-injected HTML.
 
-Current dataframe status is deliberately conservative: automatic pandas/polars
-rendering is not part of the committed surface yet. Use explicit Markdown tables
-via `display(Markdown(...))` when you want dependency-free table output.
+Optional ecosystem examples are rendered by `./scripts/ecosystem.sh` under
+`examples/ecosystem/` for pandas, polars, and plotnine inspection. They use
+`uv-python.with` and do not add those packages to this repository's core
+dependencies.
 
 ## Known limitations
 
 The fallback scope is intentionally narrow. Deferred or out-of-scope features are
 explicitly not part of this static parity slice:
 
-- pandas/polars/table auto-rendering and tabulate-backed dataframe output without
-  a separate dependency decision;
+- pandas Styler, MultiIndex parity beyond fallback stringification, advanced
+  styling, and tabulate-backed dataframe output;
+- polars LazyFrame auto-collection, pandas conversion, and advanced dtype
+  formatting; polars `to_dicts()` converts to Python values and may truncate
+  nanosecond temporal values to microseconds, and `Series.to_list()` copies data;
+- huge dataframe pagination; the internal table formatter emits up to 25 rows and
+  12 columns, inserting ellipsis markers when truncating;
+- exact ggplot2/tidyverse parity; plotnine support is static and optional;
 - complex tables, table panels, subtables, and arbitrary HTML table processing;
 - Plotly, widgets, interactive figures, arbitrary MIME bundles, and rich
   front-end state;

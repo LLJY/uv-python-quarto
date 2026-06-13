@@ -1,0 +1,45 @@
+---
+title: "uv-python plotnine ecosystem rendering"
+engine: uv-python
+format: html
+uv-python:
+  with:
+    - pandas
+    - plotnine
+execute:
+  echo: false
+  fig-width: 4
+  fig-height: 3
+  fig-dpi: 96
+  fig-format: png
+---
+
+This fixture uses transient `uv-python.with` dependencies. The captioned
+plotnine figure is referenced as @fig-ecosystem-plotnine.
+
+```{python}
+#| label: fig-ecosystem-plotnine
+#| fig-cap: Plotnine figure rendered by uv-python
+#| fig-alt: Plotnine ecosystem scatter plot
+import pandas as pd
+from plotnine import aes, geom_point, ggplot, labs, theme_minimal
+
+points = pd.DataFrame({"x": [1, 2, 3], "y": [1, 4, 9], "label": ["a", "b", "c"]})
+plot = (
+    ggplot(points, aes("x", "y"))
+    + geom_point()
+    + labs(title="uv-python plotnine last expression")
+    + theme_minimal()
+)
+
+plot
+```
+
+Explicit `display(plot)` should also produce a single static figure without a
+spurious text representation.
+
+```{python}
+from uv_python_runtime import display
+
+display(plot)
+```

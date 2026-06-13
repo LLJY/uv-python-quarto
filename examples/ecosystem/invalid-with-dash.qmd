@@ -1,0 +1,12 @@
+---
+title: "invalid uv-python.with dash-prefixed"
+engine: uv-python
+format: html
+uv-python:
+  with:
+    - --index-url
+---
+
+```{python}
+print("INVALID_WITH_DASH_SHOULD_NOT_RUN")
+```

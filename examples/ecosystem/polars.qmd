@@ -1,0 +1,45 @@
+---
+title: "uv-python polars ecosystem rendering"
+engine: uv-python
+format: html
+uv-python:
+  with:
+    - polars
+execute:
+  echo: false
+---
+
+This fixture uses transient `uv-python.with` dependencies. The captioned polars
+table is referenced as @tbl-ecosystem-polars.
+
+```{python}
+#| label: tbl-ecosystem-polars
+#| tbl-cap: Polars dataframe rendered by uv-python
+import math
+import polars as pl
+
+df = pl.DataFrame(
+    {
+        "name": ["Ada", "Grace", "Katherine"],
+        "note": ["literal | pipe", "line one\nline two", "backtick ` cell"],
+        "score": [98.0, None, math.nan],
+    }
+)
+
+df
+```
+
+Explicit `display(df)` should use the same dependency-free table formatter.
+
+```{python}
+from uv_python_runtime import display
+
+display(df)
+```
+
+Polars Series values render as a two-column table with an ordinal index and the
+series name.
+
+```{python}
+pl.Series("series_value", ["alpha", "series | pipe", None])
+```

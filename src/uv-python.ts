@@ -250,6 +250,7 @@ const uvPythonEngineDiscovery: ExecutionEngineDiscovery = {
 
         const documentOptions = documentExecutionOptions(options);
         const documentFigure = documentFigureSettings(options);
+        const optionalRequirements = uvPythonWithRequirements(options);
         const runnerChunks: RunnerChunk[] = [];
         const runnerItems: RunnerExecutionItem[] = [];
         const cellChunkNumbers = new Map<QuartoMdCell, number>();
@@ -309,6 +310,7 @@ const uvPythonEngineDiscovery: ExecutionEngineDiscovery = {
             tempDir: options.tempDir,
             params: pythonParams(options),
             executeInfo: quartoExecuteInfo(options, documentPath),
+            optionalRequirements,
           });
         }
 
@@ -1161,6 +1163,42 @@ function pythonParams(options: ExecuteOptions): Record<string, unknown> {
   return merged;
 }
 
+function uvPythonWithRequirements(options: ExecuteOptions): string[] {
+  const formatMetadata = objectRecord(options.format.metadata);
+  const uvPythonMetadata = objectRecord(formatMetadata?.[kEngineName]);
+  if (uvPythonMetadata === undefined || !("with" in uvPythonMetadata)) {
+    return [];
+  }
+  return parseUvPythonWithRequirements(uvPythonMetadata.with);
+}
+
+function parseUvPythonWithRequirements(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      "uv-python metadata 'uv-python.with' must be a list of package requirement strings.",
+    );
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "string") {
+      throw new Error(
+        `uv-python metadata 'uv-python.with' entry ${index + 1} must be a string package requirement.`,
+      );
+    }
+    const requirement = entry.trim();
+    if (requirement.length === 0) {
+      throw new Error(
+        `uv-python metadata 'uv-python.with' entry ${index + 1} must not be empty.`,
+      );
+    }
+    if (requirement.startsWith("-")) {
+      throw new Error(
+        `uv-python metadata 'uv-python.with' entry ${index + 1} must be a package requirement, not a uv option: '${requirement}'.`,
+      );
+    }
+    return requirement;
+  });
+}
+
 function mergeParams(
   merged: Record<string, unknown>,
   value: unknown,
@@ -1203,6 +1241,7 @@ async function runPythonRunner(input: {
   tempDir: string;
   params: Record<string, unknown>;
   executeInfo: Record<string, unknown>;
+  optionalRequirements: string[];
 }): Promise<RunnerResponse> {
   await Deno.mkdir(input.tempDir, { recursive: true });
   const requestPath = await Deno.makeTempFile({
@@ -1235,8 +1274,16 @@ async function runPythonRunner(input: {
   await Deno.writeTextFile(requestPath, JSON.stringify(request, null, 2));
 
   const runnerPath = join(extensionDir, "runner.py");
+  const uvArgs = [
+    "run",
+    ...input.optionalRequirements.flatMap((requirement) => ["--with", requirement]),
+    "python",
+    runnerPath,
+    requestPath,
+    responsePath,
+  ];
   const command = new Deno.Command("uv", {
-    args: ["run", "python", runnerPath, requestPath, responsePath],
+    args: uvArgs,
     cwd: input.projectRoot,
     env: {
       QUARTO_EXECUTE_INFO: executeInfoPath,
@@ -1267,7 +1314,7 @@ async function runPythonRunner(input: {
       : "runner";
     const details = [
       `uv-python failed while executing ${failedUnit}.`,
-      `Command: uv run python ${runnerPath} ${requestPath} ${responsePath}`,
+      `Command: ${formatArgv(["uv", ...uvArgs])}`,
       stdout.trim() ? `uv stdout:\n${stdout}` : "",
       stderr.trim() ? `uv stderr:\n${stderr}` : "",
     ].filter(Boolean).join("\n\n");
@@ -1278,6 +1325,17 @@ async function runPythonRunner(input: {
     throw new Error("uv-python runner completed without writing response JSON.");
   }
   return response;
+}
+
+function formatArgv(argv: string[]): string {
+  return argv.map(formatArg).join(" ");
+}
+
+function formatArg(arg: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(arg)) {
+    return arg;
+  }
+  return `'${arg.replaceAll("'", "'\\''")}'`;
 }
 
 function validateRunnerResponse(response: RunnerResponse, chunkCount: number): void {

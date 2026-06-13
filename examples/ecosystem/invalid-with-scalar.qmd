@@ -1,0 +1,11 @@
+---
+title: "invalid uv-python.with scalar"
+engine: uv-python
+format: html
+uv-python:
+  with: pandas
+---
+
+```{python}
+print("INVALID_WITH_SCALAR_SHOULD_NOT_RUN")
+```

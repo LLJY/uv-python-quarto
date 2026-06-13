@@ -1,6 +1,8 @@
 # uv-python display API contract
 
-Status: implemented for Phase 4 of Slice 3, reused by Phase 7 inline output, and validated by Phase 8 parity fixtures.
+Status: implemented for Phase 4 of Slice 3, reused by Phase 7 inline output,
+validated by Phase 8 parity fixtures, and extended with optional pandas, polars,
+and plotnine static ecosystem rendering.
 The current implementation provides the canonical importable-only
 `uv_python_runtime` helpers, display events, object protocol fallback order,
 narrow last-expression display, and explicit `Markdown`/`HTML` wrapper rendering
@@ -70,14 +72,19 @@ parser.
    - `Text` -> `display_text` event;
    - `Markdown` -> `display_markdown` event;
    - `HTML` -> `display_html` event, subject to author-trusted HTML policy.
-2. `_repr_markdown_()` if present and callable -> `display_markdown` event.
-3. `_repr_html_()` if present and callable -> `display_html` event only when the
+2. Optional dataframe/series helpers, when their libraries are installed:
+   - pandas `DataFrame` / `Series` -> one dependency-free Markdown pipe table;
+   - polars `DataFrame` / `Series` -> one dependency-free Markdown pipe table.
+3. Optional plotnine helper, when plotnine is installed:
+   - plotnine `ggplot` -> static matplotlib `Figure` via `draw(show=False)`.
+4. `_repr_markdown_()` if present and callable -> `display_markdown` event.
+5. `_repr_html_()` if present and callable -> `display_html` event only when the
    author-trusted HTML policy is enabled for the render; otherwise degrade or
    fail according to the output protocol's unsupported-display rule.
-4. `to_markdown()` if present and callable -> `display_markdown` event.
-5. `to_html()` if present and callable -> `display_html` event only under the
+6. `to_markdown()` if present and callable -> `display_markdown` event.
+7. `to_html()` if present and callable -> `display_html` event only under the
    author-trusted HTML policy.
-6. `repr(value)` fallback -> `display_text` event.
+8. `repr(value)` fallback -> `display_text` event.
 
 Protocol caveats:
 
@@ -89,6 +96,9 @@ Protocol caveats:
 - Last-expression display, when added, may reuse this order after first checking
   explicit wrappers. If no richer representation is found, it should fall back to
   `repr()` text.
+- pandas and polars detection intentionally happens before generic HTML or
+  `to_markdown()` fallbacks so dataframe output does not become raw HTML or depend
+  on pandas' tabulate-backed Markdown methods.
 
 ## Trust and rendering policy
 
@@ -159,7 +169,7 @@ than `uv-python`.
 
 ## Dependency policy
 
-No dependency additions are approved by this contract.
+No core dependency additions are approved by this contract.
 
 Rules for future slices:
 
@@ -170,14 +180,29 @@ Rules for future slices:
 - no Jupyter, IPython, nbclient, ipykernel, notebook, or widget dependency;
 - optional/dev fixture dependencies must be isolated, documented, and skipped or
   guarded when absent;
-- dependency additions are execution-time decisions for later slices, not part of
-  this architecture-contract slice.
+- optional ecosystem packages are execution-time/user-project decisions, not
+  extension core dependencies.
 
 The first table/display features should work with only the existing project
 runtime dependencies. Explicit Markdown table display is the preferred first
 table path because it requires no dataframe library or table-rendering package.
-Pandas, polars, dataframe auto-rendering, and tabulate-backed markdown output
-remain deferred until a future dependency approval decision.
+Pandas, polars, and plotnine are optional execution-time dependencies only. They
+may be provided by the user's uv project or transient `uv-python.with` metadata;
+they must not be added to this extension's core dependency set. Dataframe
+rendering uses an internal Markdown pipe-table formatter and does not call
+pandas `DataFrame.to_markdown()` or `Series.to_markdown()` because those require
+`tabulate`.
+
+The internal dataframe table formatter includes the index for pandas dataframes
+and series, uses ordinal indexes for polars series, stringifies MultiIndex and
+other complex labels, renders missing values as empty cells, replaces embedded
+newlines with `<br>`, escapes Markdown-sensitive characters, and encodes literal
+cell pipes as `&#124;`. It emits at most 25 rows and 12 columns, inserting ellipsis
+markers when truncating.
+
+Deferred optional-ecosystem work includes pandas Styler, pandas MultiIndex parity
+beyond fallback stringification, polars LazyFrame auto-collection, dataframe
+styling, arbitrary HTML table processing, and interactive/widget display.
 
 ## Examples for future fixtures
 

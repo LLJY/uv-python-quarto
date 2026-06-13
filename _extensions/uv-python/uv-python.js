@@ -824,6 +824,7 @@ var uvPythonEngineDiscovery = {
         const figureDir = join3(engineFigureRoot, figureArtifactFormatNamespace(options));
         const documentOptions = documentExecutionOptions(options);
         const documentFigure = documentFigureSettings(options);
+        const optionalRequirements = uvPythonWithRequirements(options);
         const runnerChunks = [];
         const runnerItems = [];
         const cellChunkNumbers = /* @__PURE__ */ new Map();
@@ -884,7 +885,8 @@ var uvPythonEngineDiscovery = {
             figureDir,
             tempDir: options.tempDir,
             params: pythonParams(options),
-            executeInfo: quartoExecuteInfo(options, documentPath)
+            executeInfo: quartoExecuteInfo(options, documentPath),
+            optionalRequirements
           });
         }
         const eventsByChunk = /* @__PURE__ */ new Map();
@@ -1615,6 +1617,32 @@ function pythonParams(options) {
   mergeParams(merged, options.params, "ExecuteOptions params");
   return merged;
 }
+function uvPythonWithRequirements(options) {
+  const formatMetadata = objectRecord(options.format.metadata);
+  const uvPythonMetadata = objectRecord(formatMetadata?.[kEngineName]);
+  if (uvPythonMetadata === void 0 || !("with" in uvPythonMetadata)) {
+    return [];
+  }
+  return parseUvPythonWithRequirements(uvPythonMetadata.with);
+}
+function parseUvPythonWithRequirements(value) {
+  if (!Array.isArray(value)) {
+    throw new Error("uv-python metadata 'uv-python.with' must be a list of package requirement strings.");
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "string") {
+      throw new Error(`uv-python metadata 'uv-python.with' entry ${index + 1} must be a string package requirement.`);
+    }
+    const requirement = entry.trim();
+    if (requirement.length === 0) {
+      throw new Error(`uv-python metadata 'uv-python.with' entry ${index + 1} must not be empty.`);
+    }
+    if (requirement.startsWith("-")) {
+      throw new Error(`uv-python metadata 'uv-python.with' entry ${index + 1} must be a package requirement, not a uv option: '${requirement}'.`);
+    }
+    return requirement;
+  });
+}
 function mergeParams(merged, value, sourceName) {
   if (value === void 0) {
     return;
@@ -1670,14 +1698,19 @@ async function runPythonRunner(input) {
   };
   await Deno.writeTextFile(requestPath, JSON.stringify(request, null, 2));
   const runnerPath = join3(extensionDir, "runner.py");
+  const uvArgs = [
+    "run",
+    ...input.optionalRequirements.flatMap((requirement) => [
+      "--with",
+      requirement
+    ]),
+    "python",
+    runnerPath,
+    requestPath,
+    responsePath
+  ];
   const command = new Deno.Command("uv", {
-    args: [
-      "run",
-      "python",
-      runnerPath,
-      requestPath,
-      responsePath
-    ],
+    args: uvArgs,
     cwd: input.projectRoot,
     env: {
       QUARTO_EXECUTE_INFO: executeInfoPath
@@ -1701,7 +1734,10 @@ async function runPythonRunner(input) {
     const failedUnit = response?.failedInline !== void 0 ? `inline expression ${response.failedInline + 1}` : response?.failedChunk !== void 0 ? `chunk ${response.failedChunk + 1}` : "runner";
     const details = [
       `uv-python failed while executing ${failedUnit}.`,
-      `Command: uv run python ${runnerPath} ${requestPath} ${responsePath}`,
+      `Command: ${formatArgv([
+        "uv",
+        ...uvArgs
+      ])}`,
       stdout.trim() ? `uv stdout:
 ${stdout}` : "",
       stderr.trim() ? `uv stderr:
@@ -1713,6 +1749,15 @@ ${stderr}` : ""
     throw new Error("uv-python runner completed without writing response JSON.");
   }
   return response;
+}
+function formatArgv(argv) {
+  return argv.map(formatArg).join(" ");
+}
+function formatArg(arg) {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(arg)) {
+    return arg;
+  }
+  return `'${arg.replaceAll("'", "'\\''")}'`;
 }
 function validateRunnerResponse(response, chunkCount) {
   if (response.protocol !== kOutputProtocolVersion) {

@@ -1,0 +1,12 @@
+---
+title: "invalid uv-python.with blank"
+engine: uv-python
+format: html
+uv-python:
+  with:
+    - ""
+---
+
+```{python}
+print("INVALID_WITH_BLANK_SHOULD_NOT_RUN")
+```

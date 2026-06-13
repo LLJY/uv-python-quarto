@@ -221,6 +221,10 @@ Current implementation uses:
 - `options.target.metadata` for Phase 3 explicit document/format execute option validation
 - `options.target.metadata.params` and `options.format.metadata.params` as YAML params sources
 - `options.params` as CLI/ExecuteOptions params that override YAML params in the Python `params` mapping
+- `options.format.metadata["uv-python"].with` as the document/project optional
+  dependency source for repeated `uv run --with <requirement>` arguments; raw
+  `options.target.metadata` is not used for this metadata, so Quarto's merged
+  format metadata is the single source of truth
 - `options.format.identifier`, `execute`, `render`, `pandoc`, `language`, and `metadata` to write the uv-python `QUARTO_EXECUTE_INFO` JSON file
 - `quarto.path.inputFilesDir(documentPath)` for support directory naming
 - `ExecuteResult.supporting` to register support directories containing figures
@@ -246,3 +250,34 @@ Phase 7 params/context fixtures assert:
 5. uv-python does not synthesize `QUARTO_PROJECT_DIR`; local Quarto 1.9.37 provides it in the inherited render environment.
 
 Phase 8 validation renders `examples/parity/params-context.qmd` with YAML params and again with CLI `-P` overrides, asserting the Python `params` mapping, lack of top-level variable injection, and the `QUARTO_EXECUTE_INFO` fields listed above. Future probes may still be needed for `--execute-params` file merge edge cases beyond Quarto's `ExecuteOptions.params` exposure, project-specific `QUARTO_PROJECT_DIR` behavior across Quarto releases, or non-empty `ExecuteResult.resourceFiles` behavior before using it for assets.
+
+## Optional dependency metadata
+
+The optional ecosystem slice adds document/project metadata:
+
+```yaml
+uv-python:
+  with:
+    - pandas
+    - polars
+    - plotnine
+```
+
+The engine reads this only from Quarto's merged format metadata at
+`options.format.metadata["uv-python"].with`. It is not a chunk option and is not
+read from raw `options.target.metadata`, avoiding a second precedence path. The
+value must be a YAML list; each entry must be a non-empty string and must not
+begin with `-`. Invalid metadata fails before the runner process is launched.
+
+When valid entries are present, the runner command is built as repeated uv
+`--with` arguments before `python`:
+
+```text
+uv run --with pandas --with polars --with plotnine python runner.py request.json response.json
+```
+
+When no entries are present, the command remains:
+
+```text
+uv run python runner.py request.json response.json
+```

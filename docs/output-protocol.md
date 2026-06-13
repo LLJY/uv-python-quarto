@@ -251,7 +251,7 @@ type DisplayMarkdownEventV1 = OutputEventBaseV1 & {
   kind: "display_markdown";
   payload: { markdown: string };
   metadata?: {
-    source?: "display" | "last_expression" | "_repr_markdown_" | "to_markdown";
+    source?: "display" | "last_expression" | "_repr_markdown_" | "to_markdown" | "dataframe";
   };
 };
 ```
@@ -264,6 +264,9 @@ Semantics:
   protocol;
 - cross-format only to the extent Pandoc/Quarto can consume the resulting
   Markdown.
+- optional pandas and polars dataframe/series renderers reuse this event kind and
+  emit exactly one dependency-free Markdown pipe table for each displayed object;
+  they do not introduce a table-specific protocol event.
 
 ### `display_html`
 
@@ -328,6 +331,9 @@ Semantics:
   unlabeled figures, the same caption is applied predictably to each figure;
 - after capture, figures are closed to prevent stale figures from leaking into
   later chunks;
+- optional plotnine `ggplot` objects are drawn with `draw(show=False)` and saved
+  through the same static figure event path; returned matplotlib figures are
+  captured directly so they do not depend on `plt.get_fignums()` visibility;
 - complex computational figure layouts, `fig-subcap`, custom `layout`, dark/light
   `renderings`, LaTeX-specific `fig-pos`/`fig-env`, and interactive figures are
   deferred;

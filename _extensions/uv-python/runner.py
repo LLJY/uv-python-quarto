@@ -24,6 +24,7 @@ import warnings
 
 PROTOCOL_VERSION = "uv-python.output-events/v1"
 RUNTIME_MODULE_NAME = "uv_python_runtime"
+RUNTIME_FIGURE_EVENT_KIND = "_uv_python_matplotlib_figure"
 
 CapturedWarning = dict[str, Any]
 DisplayRuntime = ModuleType
@@ -43,10 +44,15 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def _close_figures() -> None:
+def _close_figures(figures: list[Any] | None = None) -> None:
     try:
         import matplotlib.pyplot as plt
 
+        for figure in figures or []:
+            try:
+                plt.close(figure)
+            except Exception:
+                pass
         plt.close("all")
     except Exception:
         return
@@ -109,6 +115,7 @@ def _capture_figures(
     figure_dir: Path,
     chunk_index: int,
     figure_options: dict[str, Any],
+    explicit_figures: list[Any] | None = None,
 ) -> list[dict[str, Any]]:
     try:
         import matplotlib.pyplot as plt
@@ -116,8 +123,9 @@ def _capture_figures(
         return []
 
     figures: list[dict[str, Any]] = []
+    explicit_figures = explicit_figures or []
     fignums = list(plt.get_fignums())
-    if not fignums:
+    if not fignums and not explicit_figures:
         return figures
 
     figure_format = str(figure_options.get("format", "png"))
@@ -131,10 +139,13 @@ def _capture_figures(
         savefig_kwargs["dpi"] = float(figure_options["dpi"])
 
     figure_dir.mkdir(parents=True, exist_ok=True)
-    for figure_number, fignum in enumerate(fignums, start=1):
-        figure = plt.figure(fignum)
+    captured_ids: set[int] = set()
+
+    def save_figure(figure: Any, figure_number: int) -> None:
         filename = f"figure-{chunk_index + 1}-{figure_number}.{figure_format}"
         path = figure_dir / filename
+        if not hasattr(figure, "savefig"):
+            raise TypeError("uv-python figure capture expected a matplotlib Figure with savefig().")
         figure.savefig(path, **savefig_kwargs)
         figures.append(
             {
@@ -143,6 +154,19 @@ def _capture_figures(
                 "figureIndex": figure_number - 1,
             }
         )
+
+    figure_number = 1
+    for figure in explicit_figures:
+        captured_ids.add(id(figure))
+        save_figure(figure, figure_number)
+        figure_number += 1
+
+    for fignum in fignums:
+        figure = plt.figure(fignum)
+        if id(figure) in captured_ids:
+            continue
+        save_figure(figure, figure_number)
+        figure_number += 1
     plt.close("all")
     return figures
 
@@ -404,6 +428,7 @@ def run(request_path: Path, response_path: Path) -> int:
         exc_traceback = ""
         exc: BaseException | None = None
         error_event: dict[str, Any] | None = None
+        pending_figures: list[Any] = []
 
         def flush_text_events() -> None:
             stdout_text = stdout.getvalue()
@@ -435,6 +460,14 @@ def run(request_path: Path, response_path: Path) -> int:
             metadata: dict[str, Any] | None = None,
         ) -> None:
             flush_text_events()
+            if kind == RUNTIME_FIGURE_EVENT_KIND:
+                if inline_index is not None:
+                    raise RuntimeError("uv-python inline expressions do not support figure output.")
+                figure = payload.get("figure")
+                if figure is None or not hasattr(figure, "savefig"):
+                    raise TypeError("uv_python_runtime plotnine display expected a matplotlib Figure.")
+                pending_figures.append(figure)
+                return
             if inline_index is not None and kind in {"display_markdown", "display_html"}:
                 source = (metadata or {}).get("source")
                 if source not in {"display", "inline_expression"}:
@@ -536,9 +569,9 @@ def run(request_path: Path, response_path: Path) -> int:
                 )
             fatal_error = bool(exc_traceback and (item_kind == "inline" or not options.get("error", False)))
             if fatal_error:
-                _close_figures()
+                _close_figures(pending_figures)
             elif item_kind == "chunk" and options.get("output", True):
-                for figure in _capture_figures(figure_dir, index, figure_options):
+                for figure in _capture_figures(figure_dir, index, figure_options, pending_figures):
                     figure_index = int(figure["figureIndex"])
                     add_event(
                         "figure",
@@ -547,7 +580,7 @@ def run(request_path: Path, response_path: Path) -> int:
                         {"figureIndex": figure_index},
                     )
             else:
-                _close_figures()
+                _close_figures(pending_figures)
 
         if exc_traceback and (item_kind == "inline" or not options.get("error", False)):
             response["failed"] = True
