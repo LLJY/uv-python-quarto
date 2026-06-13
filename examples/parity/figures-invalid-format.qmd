@@ -1,0 +1,16 @@
+---
+title: "uv-python invalid figure format"
+engine: uv-python
+format: html
+execute:
+  echo: false
+---
+
+```{python}
+#| fig-format: pdf
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+ax = fig.subplots()
+ax.plot([1, 2], [1, 2])
+```

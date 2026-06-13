@@ -1,0 +1,7 @@
+title: Uv-python
+author: Lucas Lee Jing Yi
+version: 0.1.0
+quarto-required: ">=1.9.37"
+contributes:
+  engines:
+    - path: uv-python.js

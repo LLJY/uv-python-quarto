@@ -1,0 +1,12 @@
+---
+title: "uv-python invalid figure metadata without figure"
+engine: uv-python
+format: html
+execute:
+  echo: false
+---
+
+```{python}
+#| fig-alt: No matplotlib figure exists for this metadata
+print("no figure emitted")
+```

@@ -1,0 +1,10 @@
+---
+title: "uv-python invalid option value"
+engine: uv-python
+format: html
+---
+
+```{python}
+#| output: raw
+print("this should not render")
+```

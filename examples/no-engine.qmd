@@ -1,0 +1,11 @@
+---
+title: "ordinary Python document without uv-python engine"
+format: html
+---
+
+This fixture deliberately omits `engine: uv-python`. It should not be handled by
+the uv-python extension automatically.
+
+```{python}
+print("ordinary Python engine path")
+```

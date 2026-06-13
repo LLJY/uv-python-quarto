@@ -1,0 +1,85 @@
+---
+title: "uv-python display and last-expression parity"
+engine: uv-python
+format: html
+execute:
+  echo: false
+  output: true
+---
+
+This fixture exercises the no-Jupyter `uv_python_runtime` display API and narrow
+Jupyter-like last top-level expression display.
+
+```{python}
+from pathlib import Path
+import uv_python_runtime
+from uv_python_runtime import display, Markdown, HTML, Text
+
+runtime_file = Path(uv_python_runtime.__file__).as_posix()
+display(Text(f"RUNTIME_IMPORT_ENGINE_PACKAGE {runtime_file.endswith('_extensions/uv-python/uv_python_runtime/__init__.py')}"))
+display(Text("TEXT_WRAPPER_LITERAL **not markdown**"))
+display(Markdown("**DISPLAY_MARKDOWN_WRAPPER**"))
+display(HTML('<span id="display-html-wrapper"><strong>DISPLAY_HTML_WRAPPER</strong></span>'))
+```
+
+```{python}
+class ReprMarkdownObject:
+    def _repr_markdown_(self):
+        return "**REPR_MARKDOWN_OBJECT**"
+
+
+class ToMarkdownObject:
+    def to_markdown(self):
+        return "*TO_MARKDOWN_OBJECT*"
+
+
+class ReprHtmlObject:
+    def _repr_html_(self):
+        return '<span id="repr-html-object">REPR_HTML_OBJECT</span>'
+
+
+class ToHtmlObject:
+    def to_html(self):
+        return '<span id="to-html-object">TO_HTML_OBJECT</span>'
+
+
+class ReprFallbackObject:
+    def __repr__(self):
+        return "REPR_FALLBACK_OBJECT **not markdown**"
+
+
+display(ReprMarkdownObject())
+display(ToMarkdownObject())
+display(ReprHtmlObject())
+display(ToHtmlObject())
+display(ReprFallbackObject())
+```
+
+```{python}
+"LAST_EXPR_SIMPLE_VALUE"
+```
+
+```{python}
+"FIRST_EXPR_SHOULD_NOT_DISPLAY"
+"LAST_EXPR_ONLY_VALUE"
+```
+
+```{python}
+assignment_only_marker = "ASSIGNMENT_ONLY_SHOULD_NOT_DISPLAY"
+```
+
+```{python}
+display(Text("# PLAIN_TEXT_NOT_HEADING\n<strong>PLAIN_TEXT_NOT_HTML</strong>"))
+```
+
+```{python}
+#| output: asis
+display(Text("# ASIS_TEXT_NOT_HEADING"))
+display(Markdown("## ASIS_MARKDOWN_HEADING"))
+```
+
+```{python}
+#| output: false
+display(Text("OUTPUT_FALSE_DISPLAY_SHOULD_HIDE"))
+"OUTPUT_FALSE_LAST_EXPR_SHOULD_HIDE"
+```

@@ -1,0 +1,11 @@
+---
+title: "uv-python inline-only parity"
+engine: uv-python
+format: html
+execute:
+  echo: false
+---
+
+This document has no fenced Python chunks, but inline Python still executes: `{python} 40 + 2`.
+
+Plain inline strings escape Pandoc inline markup triggers: `{python} "$INLINE_DOLLAR$ ~INLINE_SUB~ ^INLINE_SUPER^ **INLINE_STRONG_NOT_RAW** <em>INLINE_HTML_NOT_RAW</em>"`.

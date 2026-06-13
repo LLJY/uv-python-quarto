@@ -1,0 +1,17 @@
+---
+title: "uv-python invalid table label"
+engine: uv-python
+format: html
+---
+
+```{python}
+#| label: fig-not-a-table
+#| tbl-cap: This should fail before rendering
+from uv_python_runtime import display, Markdown
+
+display(Markdown("""
+| item | value |
+| --- | ---: |
+| invalid label | 1 |
+"""))
+```

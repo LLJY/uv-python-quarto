@@ -1,0 +1,130 @@
+---
+title: "uv-python inline context parity"
+subtitle: "YAML literal `{python} should_not_execute_yaml`"
+engine: uv-python
+format: html
+execute:
+  echo: false
+---
+
+This fixture exercises Quarto-style inline Python execution in document order.
+
+```{python}
+from uv_python_runtime import display, Markdown, HTML, Text
+
+x = 1
+state_order = ["chunk-1"]
+
+class InlineReprMarkdownObject:
+    def _repr_markdown_(self):
+        return "**INLINE_REPR_MARKDOWN_SHOULD_NOT_RAW**"
+
+    def __str__(self):
+        return "INLINE_REPR_MARKDOWN_TEXT **not bold**"
+
+
+class InlineReprHtmlObject:
+    def _repr_html_(self):
+        return '<span id="inline-repr-html-should-not-raw">INLINE_REPR_HTML_SHOULD_NOT_RAW</span>'
+
+    def __str__(self):
+        return "INLINE_REPR_HTML_TEXT <em>not html</em>"
+
+
+class InlineToMarkdownObject:
+    def to_markdown(self):
+        return "**INLINE_TO_MARKDOWN_SHOULD_NOT_RAW**"
+
+    def __str__(self):
+        return "INLINE_TO_MARKDOWN_TEXT **not bold**"
+
+
+class InlineToHtmlObject:
+    def to_html(self):
+        return '<span id="inline-to-html-should-not-raw">INLINE_TO_HTML_SHOULD_NOT_RAW</span>'
+
+    def __str__(self):
+        return "INLINE_TO_HTML_TEXT <em>not html</em>"
+
+
+class InlineDisplayReprMarkdownObject:
+    def _repr_markdown_(self):
+        return "**INLINE_DISPLAY_REPR_MARKDOWN_LITERAL**"
+
+
+class InlineDisplayReprHtmlObject:
+    def _repr_html_(self):
+        return '<span id="inline-display-repr-html-should-not-raw">INLINE_DISPLAY_REPR_HTML_LITERAL</span>'
+
+
+class InlineDisplayToMarkdownObject:
+    def to_markdown(self):
+        return "**INLINE_DISPLAY_TO_MARKDOWN_LITERAL**"
+
+
+class InlineDisplayToHtmlObject:
+    def to_html(self):
+        return '<span id="inline-display-to-html-should-not-raw">INLINE_DISPLAY_TO_HTML_LITERAL</span>'
+```
+
+First inline sees x=`{python} x` and records order marker `{python} state_order.append("inline-1") or len(state_order)`.
+
+```{python}
+x = 2
+state_order.append("chunk-2")
+```
+
+Second inline sees x=`{python} x` and full order `{python} ",".join(state_order)`.
+
+Plain Markdown-looking inline stays literal: `{python} "**INLINE_NOT_BOLD** <em>INLINE_NOT_HTML</em>"`.
+
+Explicit inline Markdown wrapper renders rich output: `{python} Markdown("**INLINE_MARKDOWN_WRAPPER**")`.
+
+Explicit inline HTML wrapper renders trusted HTML: `{python} HTML('<span id="inline-html-wrapper">INLINE_HTML_WRAPPER</span>')`.
+
+Text wrapper remains literal: `{python} Text("**INLINE_TEXT_WRAPPER_NOT_BOLD**")`.
+
+Rich protocol objects are plain inline text, not raw Markdown/HTML: `{python} InlineReprMarkdownObject()`, `{python} InlineReprHtmlObject()`, `{python} InlineToMarkdownObject()`, `{python} InlineToHtmlObject()`.
+
+Inline display keeps explicit wrappers raw: `{python} display(Markdown("**INLINE_DISPLAY_MARKDOWN_WRAPPER**"))` and `{python} display(HTML('<span id="inline-display-html-wrapper">INLINE_DISPLAY_HTML_WRAPPER</span>'))`.
+
+Inline display downgrades rich object protocols to escaped text: `{python} display(InlineDisplayReprMarkdownObject())`, `{python} display(InlineDisplayReprHtmlObject())`, `{python} display(InlineDisplayToMarkdownObject())`, `{python} display(InlineDisplayToHtmlObject())`.
+
+Escaped double-brace inline stays literal: `{{python}} should_not_execute_inline_escape`.
+
+Extra-backtick literal inline stays literal: `` `{python} should_not_execute_extra_backtick` ``.
+
+~~~text
+`{python} should_not_execute_tilde_fence`
+~~~
+
+    `{python} should_not_execute_indented_code`
+
+> ```text
+> `{python} should_not_execute_blockquote_backtick_fence`
+> ```
+
+> ~~~text
+> `{python} should_not_execute_blockquote_tilde_fence`
+> ~~~
+
+>     `{python} should_not_execute_blockquote_indented_code`
+
+- ```text
+  `{python} should_not_execute_list_backtick_fence`
+  ```
+
+- ~~~text
+  `{python} should_not_execute_list_tilde_fence`
+  ~~~
+
+-     `{python} should_not_execute_list_marker_indented_code`
+
+-     `{python} should_not_execute_explicit_list_code_first`
+      `{python} should_not_execute_explicit_list_code_second`
+
+- list item with a continuation paragraph
+
+    List continuation inline executes: `{python} "LIST_CONTINUATION_INLINE_EXECUTED"`.
+
+      `{python} should_not_execute_list_continuation_indented_code`

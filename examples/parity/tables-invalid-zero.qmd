@@ -1,0 +1,13 @@
+---
+title: "uv-python invalid table caption without table"
+engine: uv-python
+format: html
+---
+
+```{python}
+#| label: tbl-no-table
+#| tbl-cap: This should fail because no table is displayed
+from uv_python_runtime import display, Markdown
+
+display(Markdown("This is Markdown prose, not a pipe table."))
+```

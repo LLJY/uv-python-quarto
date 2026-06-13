@@ -1,0 +1,14 @@
+.venv/
+.quarto/
+.opencode/
+__pycache__/
+*.py[cod]
+**/*.quarto_ipynb
+
+# Quarto render outputs produced by local validation of examples.
+examples/**/*.html
+examples/**/*_files/
+examples/parity/figures.md
+examples/parity/figures-multiformat.md
+
+/.quarto/

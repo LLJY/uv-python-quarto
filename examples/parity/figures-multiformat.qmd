@@ -1,0 +1,23 @@
+---
+title: "uv-python multi-format figure artifacts"
+engine: uv-python
+format:
+  html: default
+  gfm: default
+execute:
+  echo: false
+  output: true
+---
+
+This fixture renders more than one format in a single command so figure files
+created for one output format must not be deleted by the later format render.
+
+```{python}
+#| fig-cap: Multi-format uv-python figure
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+ax = fig.subplots()
+ax.plot([1, 2, 3], [3, 2, 1])
+_ = ax.set_title("Multi-format figure")
+```

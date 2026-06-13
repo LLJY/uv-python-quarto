@@ -1,0 +1,59 @@
+---
+title: "Quarto-native UI without Python raw HTML"
+engine: uv-python
+format:
+  html:
+    toc: true
+execute:
+  echo: true
+---
+
+This document shows the current boundary for "interactivity" without Python raw
+HTML. The UI affordances below are Quarto Markdown constructs, not Python
+`HTML(...)` output. uv-python supplies values and figures inside them.
+
+::: {.callout-note}
+## Static report UI
+
+Callouts are Quarto-native Markdown. Python can compute values used in the prose:
+`{python} "UI_INLINE_VALUE " + str(3 * 4)`.
+:::
+
+::: {.panel-tabset}
+
+## Summary
+
+```{python}
+print("UI_SUMMARY_OUTPUT produced by uv-python")
+```
+
+## Markdown table
+
+```{python}
+from uv_python_runtime import display, Markdown
+
+display(Markdown("""
+| tab | source |
+| --- | --- |
+| Summary | Python stdout |
+| Markdown table | explicit Markdown display |
+| Figure | matplotlib |
+"""))
+```
+
+## Figure
+
+```{python}
+#| fig-cap: Quarto tabset matplotlib figure
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+ax = fig.subplots()
+ax.plot([0, 1, 2], [0, 1, 0])
+_ = ax.set_title("Figure in a Quarto tabset")
+```
+
+:::
+
+Anything beyond Quarto-native static UI—widgets, live callbacks, Plotly widget
+state, or server-backed dashboards—is outside the current non-Jupyter surface.

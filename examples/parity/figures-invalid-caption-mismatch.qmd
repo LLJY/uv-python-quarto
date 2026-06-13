@@ -1,0 +1,21 @@
+---
+title: "uv-python invalid figure caption mismatch"
+engine: uv-python
+format: html
+execute:
+  echo: false
+---
+
+```{python}
+#| fig-cap:
+#|   - Only one caption for two figures
+import matplotlib.pyplot as plt
+
+first = plt.figure()
+ax = first.subplots()
+ax.plot([1, 2], [1, 2])
+
+second = plt.figure()
+ax = second.subplots()
+ax.plot([1, 2], [2, 1])
+```

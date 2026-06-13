@@ -1,0 +1,101 @@
+---
+title: "uv-python execution options parity"
+engine: uv-python
+format: html
+execute:
+  echo: false
+  eval: true
+  include: true
+  output: true
+  warning: false
+  error: false
+---
+
+This fixture exercises the supported static execution option subset.
+
+Document-level `warning: false` suppresses Python warnings but not ordinary
+stderr.
+
+```{python}
+import sys
+import warnings
+
+warnings.warn("document warning should be suppressed")
+sys.stderr.write("stderr survives warning false\n")
+print("document defaults execute")
+```
+
+Chunk-local `warning: true` overrides the document default.
+
+```{python}
+#| warning: true
+import warnings
+
+warnings.warn("chunk warning visible")
+```
+
+`output: asis` inserts stdout as raw Markdown.
+
+```{python}
+#| output: asis
+print("## Raw Markdown From Stdout\n")
+print("| name | value |")
+print("| --- | ---: |")
+print("| alpha | 1 |")
+```
+
+Normal `output: true` remains fenced text, not raw Markdown.
+
+```{python}
+print("# Not Raw Heading")
+```
+
+`echo: fenced` displays a non-executable tutorial fence while the code still
+executes once.
+
+```{python}
+#| echo: fenced
+#| output: false
+tutorial_count = globals().get("tutorial_count", 0) + 1
+print("hidden echo-fenced stdout")
+```
+
+```{python}
+print(f"echo fenced executed {tutorial_count} time")
+```
+
+`include: false` hides output while preserving execution side effects.
+
+```{python}
+#| include: false
+hidden_option_value = "include false executed"
+print("hidden include false output")
+```
+
+```{python}
+print(hidden_option_value)
+```
+
+`eval: false` skips execution but can still echo the source.
+
+```{python}
+#| eval: false
+#| echo: true
+eval_false_value = "should not exist"
+print("eval false should not execute")
+```
+
+```{python}
+print("eval false skipped", "eval_false_value" in globals())
+```
+
+`error: true` renders the traceback and allows following chunks to continue.
+
+```{python}
+#| error: true
+raise RuntimeError("allowed parity error")
+```
+
+```{python}
+print("continued after parity options error")
+```

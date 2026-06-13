@@ -1,0 +1,68 @@
+---
+title: "uv-python basic example"
+engine: uv-python
+format: html
+---
+
+This example renders ordinary Python chunks through `uv run`, without Jupyter.
+
+```{python}
+#| echo: true
+x = 40
+print("first chunk set x")
+```
+
+The next chunk sees state from the first chunk.
+
+```{python}
+print(f"shared state result: {x + 2}")
+```
+
+Hidden chunks still execute when `include: false`.
+
+```{python}
+#| include: false
+hidden_value = "hidden execution worked"
+```
+
+```{python}
+print(hidden_value)
+```
+
+Chunks with `output: false` execute but suppress their captured output.
+
+```{python}
+#| output: false
+suppressed_value = 7
+print("this output should be suppressed")
+```
+
+```{python}
+print(f"suppressed chunk state: {suppressed_value}")
+```
+
+Stderr is captured as text output as well.
+
+```{python}
+import sys
+
+sys.stderr.write("stderr validation message\n")
+```
+
+Chunks with `eval: false` do not execute, but can echo source.
+
+```{python}
+#| eval: false
+#| echo: true
+print("this chunk should not execute")
+```
+
+Matplotlib figures are captured as static PNG files.
+
+```{python}
+import matplotlib.pyplot as plt
+
+plt.figure()
+plt.plot([1, 2, 3], [1, 4, 9])
+plt.title("uv-python matplotlib PNG")
+```

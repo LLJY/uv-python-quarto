@@ -1,0 +1,17 @@
+---
+title: "uv-python invalid non-fig figure label"
+engine: uv-python
+format: html
+execute:
+  echo: false
+---
+
+```{python}
+#| label: tbl-not-a-figure
+#| fig-cap: Figure metadata cannot use a table label
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+ax = fig.subplots()
+ax.plot([1, 2], [1, 2])
+```

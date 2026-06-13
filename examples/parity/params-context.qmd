@@ -1,0 +1,40 @@
+---
+title: "uv-python params and context parity"
+engine: uv-python
+format: html
+params:
+  alpha: yaml-alpha
+  beta: yaml-beta
+execute:
+  echo: false
+---
+
+This fixture exercises uv-python-specific `params` mapping and execution context.
+
+```{python}
+import json
+import os
+
+info_path = os.environ.get("QUARTO_EXECUTE_INFO")
+print("EXECUTE_INFO_ENV_PRESENT", bool(info_path))
+with open(info_path, encoding="utf-8") as handle:
+    execute_info = json.load(handle)
+
+format_info = execute_info["format"]
+identifier = format_info["identifier"]
+
+print("PARAM_ALPHA", params["alpha"])
+print("PARAM_BETA", params["beta"])
+print("PARAM_GAMMA", params.get("gamma", "missing"))
+print("PARAM_TOP_LEVEL_ALPHA_PRESENT", "alpha" in globals())
+print("EXECUTE_INFO_HAS_PATH", execute_info["document-path"].endswith("examples/parity/params-context.qmd"))
+print("EXECUTE_INFO_TARGET_FORMAT", identifier.get("target-format"))
+print("EXECUTE_INFO_BASE_FORMAT", identifier.get("base-format"))
+print("EXECUTE_INFO_HAS_EXECUTE", isinstance(format_info.get("execute"), dict))
+print("EXECUTE_INFO_HAS_RENDER", isinstance(format_info.get("render"), dict))
+print("EXECUTE_INFO_HAS_PANDOC", isinstance(format_info.get("pandoc"), dict))
+print("EXECUTE_INFO_METADATA_TITLE", format_info.get("metadata", {}).get("title"))
+print("QUARTO_PROJECT_DIR_ENV_PRESENT", "QUARTO_PROJECT_DIR" in os.environ)
+```
+
+Inline params share the same mapping: beta=`{python} params["beta"]`.

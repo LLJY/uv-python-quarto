@@ -1,0 +1,21 @@
+---
+title: "uv-python invalid labeled multi-figure"
+engine: uv-python
+format: html
+execute:
+  echo: false
+---
+
+```{python}
+#| label: fig-labeled-multiple
+#| fig-cap: Labeled multi-figure groups are deferred
+import matplotlib.pyplot as plt
+
+first = plt.figure()
+ax = first.subplots()
+ax.plot([1, 2], [1, 2])
+
+second = plt.figure()
+ax = second.subplots()
+ax.plot([1, 2], [2, 1])
+```

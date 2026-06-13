@@ -1,0 +1,9 @@
+---
+title: "uv-python inline invalid exception parity"
+engine: uv-python
+format: html
+execute:
+  echo: false
+---
+
+Inline exceptions should fail the render with a clear diagnostic: `{python} 1 / 0`.

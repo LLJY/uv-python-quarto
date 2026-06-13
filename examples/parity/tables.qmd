@@ -1,0 +1,40 @@
+---
+title: "uv-python minimal table parity"
+engine: uv-python
+format: html
+execute:
+  echo: false
+  output: true
+---
+
+This fixture exercises dependency-free Markdown table display. The captioned
+computational table is referenced as @tbl-uv-python-fruit.
+
+```{python}
+from uv_python_runtime import display, Markdown
+
+display(Markdown("""
+| metric | value |
+| --- | ---: |
+| explicit markdown table | 1 |
+"""))
+```
+
+```{python}
+#| label: tbl-uv-python-fruit
+#| tbl-cap: Fruit counts from explicit Markdown
+from uv_python_runtime import display, Markdown
+
+display(Markdown("""
+| fruit | count |
+| --- | ---: |
+| apples | 3 |
+| oranges | 5 |
+"""))
+
+display(Markdown("""
+TRAILING_PROSE_AFTER_CAPTIONED_TABLE_EVENT outside caption.
+"""))
+```
+
+No pandas, polars, or tabulate dependency is required for this fixture.

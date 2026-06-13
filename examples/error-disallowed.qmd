@@ -1,0 +1,12 @@
+---
+title: "uv-python disallowed error example"
+engine: uv-python
+format: html
+---
+
+This document should fail because `error` defaults to `false`.
+
+```{python}
+print("before disallowed error")
+raise RuntimeError("disallowed spike error")
+```

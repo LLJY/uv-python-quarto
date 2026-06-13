@@ -1,0 +1,86 @@
+---
+title: "uv-python static figure parity"
+engine: uv-python
+format: html
+execute:
+  echo: false
+  output: true
+  fig-width: 4
+  fig-height: 3
+  fig-dpi: 96
+  fig-format: png
+---
+
+This fixture exercises matplotlib figure settings, metadata, and basic multiple
+figure output. The captioned computational figure is referenced as
+@fig-uv-python-captioned.
+
+```{python}
+#| label: fig-uv-python-captioned
+#| fig-cap: Captioned uv-python matplotlib figure
+#| fig-alt: Alt text for uv-python captioned figure
+#| fig-align: left
+#| fig-link: https://example.com/uv-python-figure
+#| width: 60%
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+print(f"DOC_FIG_SIZE {fig.get_size_inches()[0]:.1f}x{fig.get_size_inches()[1]:.1f} DPI {fig.dpi:.0f}")
+ax = fig.subplots()
+ax.plot([1, 2, 3], [1, 4, 9])
+_ = ax.set_title("Document-level figure settings")
+```
+
+```{python}
+#| fig-width: 2
+#| fig-height: 1
+#| fig-dpi: 72
+#| fig-format: svg
+#| fig-cap: Chunk override SVG figure
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+print(f"CHUNK_FIG_SIZE {fig.get_size_inches()[0]:.1f}x{fig.get_size_inches()[1]:.1f} DPI {fig.dpi:.0f}")
+ax = fig.subplots()
+ax.plot([0, 1], [0, 1])
+_ = ax.set_title("Chunk override")
+```
+
+```{python}
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+ax = fig.subplots()
+ax.plot([0, 1], [1, 0])
+_ = ax.set_title("Uncaptioned figure should not create a visible caption")
+```
+
+```{python}
+#| fig-alt: Alt-only uv-python figure alt
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+ax = fig.subplots()
+ax.plot([0, 1], [2, 2])
+_ = ax.set_title("Alt-only figure should not create a visible caption")
+```
+
+```{python}
+#| fig-cap:
+#|   - First multi figure caption
+#|   - Second multi figure caption
+import matplotlib.pyplot as plt
+
+first = plt.figure()
+ax = first.subplots()
+ax.plot([1, 2], [2, 3])
+_ = ax.set_title("First multi figure")
+
+second = plt.figure()
+ax = second.subplots()
+ax.plot([1, 2], [3, 2])
+_ = ax.set_title("Second multi figure")
+```
+
+The multi-figure chunk intentionally uses a caption list with one caption per
+figure and no layout/subfigure metadata.

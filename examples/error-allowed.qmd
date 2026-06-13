@@ -1,0 +1,19 @@
+---
+title: "uv-python allowed error example"
+engine: uv-python
+format: html
+---
+
+This document allows one Python error and renders the traceback as text.
+
+```{python}
+#| error: true
+print("before allowed error")
+raise ValueError("allowed spike error")
+```
+
+Execution continues after the allowed error.
+
+```{python}
+print("continued after allowed error")
+```

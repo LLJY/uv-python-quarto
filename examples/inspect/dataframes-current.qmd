@@ -1,0 +1,55 @@
+---
+title: "Dataframe-style output today, without raw HTML"
+engine: uv-python
+format: html
+execute:
+  echo: true
+---
+
+This inspection document intentionally avoids `HTML(...)` and does not add
+pandas/polars dependencies. It shows the current safe surface for dataframe-like
+content: plain text/repr output and explicit Markdown tables.
+
+```{python}
+rows = [
+    {"name": "Ada", "score": 98, "group": "analysis"},
+    {"name": "Grace", "score": 95, "group": "systems"},
+    {"name": "Katherine", "score": 99, "group": "orbits"},
+]
+
+print("DATAFRAME_STATUS pandas/polars auto-rendering is not part of the current committed surface")
+rows
+```
+
+The raw Python object above is intentionally plain text/repr-style output.
+
+```{python}
+from uv_python_runtime import display, Markdown, Text
+
+def markdown_table(records):
+    headers = list(records[0])
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join(["---"] * len(headers)) + " |",
+    ]
+    for record in records:
+        lines.append("| " + " | ".join(str(record[key]) for key in headers) + " |")
+    return "\n".join(lines)
+
+display(Text("DATAFRAME_TEXT_OUTPUT list-of-dicts stays plain text unless explicitly converted"))
+display(Markdown(markdown_table(rows)))
+```
+
+The table above is the recommended dependency-free current path: explicit
+Markdown table output.
+
+```{python}
+try:
+    import pandas as pd
+except ModuleNotFoundError:
+    print("PANDAS_STATUS pandas is not installed in this uv project")
+else:
+    df = pd.DataFrame(rows)
+    print("PANDAS_STATUS pandas is installed; showing plain text to avoid raw HTML")
+    print(df.to_string(index=False))
+```

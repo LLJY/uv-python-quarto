@@ -1,0 +1,19 @@
+---
+title: "uv-python invalid captioned table with trailing prose"
+engine: uv-python
+format: html
+---
+
+```{python}
+#| label: tbl-trailing-prose
+#| tbl-cap: This should fail because prose follows the table
+from uv_python_runtime import display, Markdown
+
+display(Markdown("""
+| item | value |
+| --- | ---: |
+| table row | 1 |
+
+Trailing prose in the same Markdown display event should be a separate event.
+"""))
+```

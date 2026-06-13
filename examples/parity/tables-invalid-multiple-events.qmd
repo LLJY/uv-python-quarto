@@ -1,0 +1,23 @@
+---
+title: "uv-python invalid multiple captioned table events"
+engine: uv-python
+format: html
+---
+
+```{python}
+#| label: tbl-too-many-events
+#| tbl-cap: This should fail because two separate table display events are emitted
+from uv_python_runtime import display, Markdown
+
+display(Markdown("""
+| first | value |
+| --- | ---: |
+| a | 1 |
+"""))
+
+display(Markdown("""
+| second | value |
+| --- | ---: |
+| b | 2 |
+"""))
+```

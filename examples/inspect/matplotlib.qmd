@@ -1,0 +1,45 @@
+---
+title: "Matplotlib inspection"
+engine: uv-python
+format: html
+execute:
+  echo: true
+  fig-width: 5
+  fig-height: 3
+  fig-dpi: 110
+---
+
+This document uses matplotlib only. No raw HTML is emitted by Python.
+
+```{python}
+#| label: fig-inspect-line
+#| fig-cap: Inspectable matplotlib line chart
+#| fig-alt: Line chart with three labeled points
+#| fig-align: center
+import matplotlib.pyplot as plt
+
+fig = plt.figure()
+ax = fig.subplots()
+ax.plot(["alpha", "beta", "gamma"], [3, 8, 5], marker="o")
+_ = ax.set_title("Matplotlib through uv-python")
+_ = ax.set_ylabel("value")
+```
+
+The rendered figure is referenced as @fig-inspect-line.
+
+```{python}
+#| fig-cap:
+#|   - First inspect multi-figure
+#|   - Second inspect multi-figure
+import matplotlib.pyplot as plt
+
+first = plt.figure()
+ax = first.subplots()
+ax.bar(["A", "B", "C"], [1, 4, 2])
+_ = ax.set_title("Bar chart")
+
+second = plt.figure()
+ax = second.subplots()
+ax.scatter([1, 2, 3, 4], [4, 2, 5, 3])
+_ = ax.set_title("Scatter chart")
+```

@@ -1,0 +1,21 @@
+---
+title: "uv-python invalid multiple captioned tables"
+engine: uv-python
+format: html
+---
+
+```{python}
+#| label: tbl-too-many
+#| tbl-cap: This should fail because two tables are displayed
+from uv_python_runtime import display, Markdown
+
+display(Markdown("""
+| first | value |
+| --- | ---: |
+| a | 1 |
+
+| second | value |
+| --- | ---: |
+| b | 2 |
+"""))
+```

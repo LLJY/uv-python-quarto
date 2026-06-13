@@ -1,0 +1,10 @@
+---
+title: "uv-python invalid unsupported option"
+engine: uv-python
+format: html
+---
+
+```{python}
+#| cache: true
+print("this should not render")
+```
